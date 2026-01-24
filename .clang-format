@@ -1,0 +1,11 @@
+Language: Cpp
+BasedOnStyle: Google
+ColumnLimit: 120
+DerivePointerAlignment: false
+PointerAlignment: Left
+IndentWidth: 4
+AccessModifierOffset: -4
+AlignConsecutiveAssignments: true
+TabWidth: 4
+UseTab: Never
+InsertNewlineAtEOF: true 

@@ -1,0 +1,30 @@
+#include <gtest/gtest.h>
+#include <util/leetcode.h>
+
+#include <boost/json.hpp>
+
+#include "solution.h"
+
+using namespace util;
+
+static const boost::json::array kCases = util::load_test_cases_relative(__FILE__, "test_cases.json");
+
+template <class SolverT>
+class {{ test_suite_name }} : public ::testing::TestWithParam<boost::json::value> {
+protected:
+    SolverT solver;
+};
+
+using {{ test_suite_name }}_Default = {{ test_suite_name }}<default_::Solution>;
+
+TEST_P({{ test_suite_name }}_Default, Works) {
+    const auto& c     = GetParam().as_object();
+    const auto& input = c.at("input").as_object();
+
+    // TODO: Extract input values from JSON, and call solver methods
+    boost::json::value got;
+
+    EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
+}
+
+INSTANTIATE_TEST_SUITE_P(FromJson, {{ test_suite_name }}_Default, ::testing::ValuesIn(kCases), util::gen_test_name);

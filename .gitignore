@@ -1,0 +1,12 @@
+# Ignore Build
+build/
+
+# Ignore IDE
+.vscode/*
+
+# Ignore cache files
+__pycache__/
+.cache/
+
+# Ignore virtual environments
+.venv/
