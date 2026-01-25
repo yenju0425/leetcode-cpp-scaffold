@@ -3,7 +3,6 @@
 namespace default_ {
 
 using namespace std;
-using namespace util;
 
 class Solution {
 public:

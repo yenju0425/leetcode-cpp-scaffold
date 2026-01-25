@@ -1,27 +1,24 @@
-name: PR Agent - AI Code Review
-
+name: PR Agent
 on:
   pull_request:
     types: [opened, reopened, ready_for_review]
-    branches: [main, master]
-
-permissions:
-  pull-requests: write
-  contents: read
-
+  issue_comment:
 jobs:
-  pr_agent_review:
-    name: AI Code Review
+  pr_agent_job:
+    if: ${{ github.event.sender.type != 'Bot' }}
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
     steps:
-      - name: Run PR Agent Review
+      - name: PR Agent action step
         uses: qodo-ai/pr-agent@main
         env:
           OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
           PR_AGENT_SETTINGS: |
+            [config]
+            model="gpt-5-mini"
             [pr_reviewer]
             extra_instructions="Focus on algorithm complexity (time/space), edge cases, and potential optimizations for LeetCode solutions"
-            [pr_code_suggestions]
-            extra_instructions="Suggest algorithmic improvements and optimizations specific to competitive programming"

@@ -5,8 +5,6 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace util {
-
 boost::json::value load_json(const std::string& filepath) {
     std::ifstream file(filepath);
     if (!file.is_open()) {
@@ -38,5 +36,3 @@ std::string gen_test_name(const ::testing::TestParamInfo<boost::json::value>& in
     }
     return std::to_string(info.index);
 }
-
-}  // namespace util

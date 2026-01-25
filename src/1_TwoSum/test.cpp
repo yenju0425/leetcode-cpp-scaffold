@@ -2,13 +2,10 @@
 #include <util/leetcode.h>
 
 #include <boost/json.hpp>
-#include <boost/json/value_from.hpp>
 
 #include "solution.h"
 
-using namespace util;
-
-static const boost::json::array kCases = util::load_test_cases_relative(__FILE__, "test_cases.json");
+static const boost::json::array kCases = load_test_cases_relative(__FILE__, "test_cases.json");
 
 template <class SolverT>
 class TwoSumParamSuite : public ::testing::TestWithParam<boost::json::value> {
@@ -30,4 +27,4 @@ TEST_P(TwoSumParamSuite_Default, Works) {
     EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
 }
 
-INSTANTIATE_TEST_SUITE_P(FromJson, TwoSumParamSuite_Default, ::testing::ValuesIn(kCases), util::gen_test_name);
+INSTANTIATE_TEST_SUITE_P(FromJson, TwoSumParamSuite_Default, ::testing::ValuesIn(kCases), gen_test_name);

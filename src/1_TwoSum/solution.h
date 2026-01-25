@@ -3,7 +3,6 @@
 namespace default_ {
 
 using namespace std;
-using namespace util;
 
 class Solution {
 public:
@@ -11,8 +10,10 @@ public:
         unordered_map<int, int> val_to_index;
         for (int i = 0; i < nums.size(); ++i) {
             int complement = target - nums[i];
-            if (val_to_index.contains(complement)) {
-                return {val_to_index.at(complement), i};
+
+            auto it = val_to_index.find(complement);
+            if (it != val_to_index.end()) {
+                return {it->second, i};
             }
             val_to_index[nums[i]] = i;
         }
