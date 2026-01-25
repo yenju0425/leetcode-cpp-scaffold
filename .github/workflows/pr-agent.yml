@@ -1,0 +1,27 @@
+name: PR Agent - AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main, master]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  pr_agent_review:
+    name: AI Code Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run PR Agent Review
+        uses: Codium-ai/pr-agent@main
+        env:
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          PR_AGENT_SETTINGS: |
+            [pr_reviewer]
+            extra_instructions="Focus on algorithm complexity (time/space), edge cases, and potential optimizations for LeetCode solutions"
+            [pr_code_suggestions]
+            extra_instructions="Suggest algorithmic improvements and optimizations specific to competitive programming"
