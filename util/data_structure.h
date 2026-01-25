@@ -3,8 +3,6 @@
 
 #include <boost/json.hpp>
 
-namespace util {
-
 struct TreeNode {
     int val;
     TreeNode* left;
@@ -16,7 +14,5 @@ struct TreeNode {
 
 TreeNode* build_tree_level_order(const boost::json::value& val);
 boost::json::value dump_tree_level_order(TreeNode* root);
-
-}  // namespace util
 
 #endif /* UTIL_DATA_STRUCTURE_H */

@@ -2,7 +2,7 @@
 
 namespace default_ {
 
-using namespace util;
+using namespace std;
 
 class Solution {
 public:

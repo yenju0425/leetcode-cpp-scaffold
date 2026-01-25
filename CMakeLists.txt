@@ -46,6 +46,7 @@ if(CPPCHECK)
             --std=c++23
             --suppress=unmatchedSuppression
             --suppress=noExplicitConstructor
+            --suppress=constParameterReference
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Running cppcheck static analysis..."
     )

@@ -4,8 +4,6 @@
 #include <boost/json/fwd.hpp>
 #include <queue>
 
-namespace util {
-
 TreeNode* build_tree_level_order(const boost::json::value& val) {
     if (!val.is_array()) {
         return nullptr;
@@ -72,5 +70,3 @@ boost::json::value dump_tree_level_order(TreeNode* root) {
 
     return out;
 }
-
-}  // namespace util
