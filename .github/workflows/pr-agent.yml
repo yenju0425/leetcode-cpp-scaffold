@@ -2,7 +2,7 @@ name: PR Agent - AI Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, reopened, ready_for_review]
     branches: [main, master]
 
 permissions:
