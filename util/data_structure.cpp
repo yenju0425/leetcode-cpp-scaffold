@@ -4,17 +4,17 @@
 #include <boost/json/fwd.hpp>
 #include <queue>
 
-TreeNode* build_tree_level_order(const boost::json::value& val) {
+Tree::Tree(const boost::json::value& val) {
     if (!val.is_array()) {
-        return nullptr;
+        return;
     }
 
     const auto& arr = val.as_array();
     if (arr.empty() || !arr.front().is_int64()) {
-        return nullptr;
+        return;
     }
 
-    TreeNode* root = new TreeNode(arr.front().as_int64());
+    this->root = new TreeNode(arr.front().as_int64());
 
     std::queue<TreeNode*> q;
     q.push(root);
@@ -36,12 +36,23 @@ TreeNode* build_tree_level_order(const boost::json::value& val) {
         }
         i++;
     }
-
-    return root;
 }
 
-boost::json::value dump_tree_level_order(TreeNode* root) {
-    if (!root) {
+Tree::~Tree() { release_node(this->root); }
+
+void Tree::release_node(TreeNode* node) {
+    if (!node) {
+        return;
+    }
+
+    release_node(node->left);
+    release_node(node->right);
+
+    delete node;
+}
+
+boost::json::value Tree::serialize_tree_level_order() {
+    if (!this->root) {
         return boost::json::array{};
     }
 
@@ -49,7 +60,7 @@ boost::json::value dump_tree_level_order(TreeNode* root) {
     auto& arr              = out.as_array();
 
     std::queue<TreeNode*> q;
-    q.push(root);
+    q.push(this->root);
 
     while (!q.empty()) {
         auto node = q.front();

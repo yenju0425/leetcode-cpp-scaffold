@@ -12,7 +12,15 @@ struct TreeNode {
     TreeNode(int x, TreeNode* left, TreeNode* right) : val(x), left(left), right(right) {}
 };
 
-TreeNode* build_tree_level_order(const boost::json::value& val);
-boost::json::value dump_tree_level_order(TreeNode* root);
+struct Tree {
+    TreeNode* root = nullptr;
+    explicit Tree(const boost::json::value& val);
+    ~Tree();
+    Tree(const Tree&)            = delete;
+    Tree& operator=(const Tree&) = delete;
+
+    void release_node(TreeNode* node);
+    boost::json::value serialize_tree_level_order();
+};
 
 #endif /* UTIL_DATA_STRUCTURE_H */
