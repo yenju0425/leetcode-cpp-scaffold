@@ -19,10 +19,10 @@ TEST_P(FlattenBinaryTreeToLinkedListParamSuite_Default, Works) {
     const auto& c     = GetParam().as_object();
     const auto& input = c.at("input").as_object();
 
-    TreeNode* root = build_tree_level_order(input.at("root"));
-    solver.flatten(root);
+    Tree tree(input.at("root"));
+    solver.flatten(tree.root);
 
-    boost::json::value got = dump_tree_level_order(root);
+    boost::json::value got = tree.serialize_tree_level_order();
 
     EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
 }

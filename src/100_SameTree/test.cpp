@@ -19,10 +19,10 @@ TEST_P(SameTreeParamSuite_Default, Works) {
     const auto& c     = GetParam().as_object();
     const auto& input = c.at("input").as_object();
 
-    TreeNode* p = build_tree_level_order(input.at("p"));
-    TreeNode* q = build_tree_level_order(input.at("q"));
+    Tree p(input.at("p"));
+    Tree q(input.at("q"));
 
-    boost::json::value got = boost::json::value_from(solver.isSameTree(p, q));
+    boost::json::value got = boost::json::value_from(solver.isSameTree(p.root, q.root));
 
     EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
 }
