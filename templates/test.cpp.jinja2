@@ -13,9 +13,9 @@ protected:
     SolverT solver;
 };
 
-using {{ test_suite_name }}_Default = {{ test_suite_name }}<default_::Solution>;
+using {{ test_suite_name }}_Baseline = {{ test_suite_name }}<baseline::Solution>;
 
-TEST_P({{ test_suite_name }}_Default, Works) {
+TEST_P({{ test_suite_name }}_Baseline, Works) {
     const auto& c     = GetParam().as_object();
     const auto& input = c.at("input").as_object();
 
@@ -25,4 +25,4 @@ TEST_P({{ test_suite_name }}_Default, Works) {
     EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
 }
 
-INSTANTIATE_TEST_SUITE_P(FromJson, {{ test_suite_name }}_Default, ::testing::ValuesIn(kCases), gen_test_name);
+INSTANTIATE_TEST_SUITE_P(FromJson, {{ test_suite_name }}_Baseline, ::testing::ValuesIn(kCases), gen_test_name);
