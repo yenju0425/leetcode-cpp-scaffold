@@ -13,9 +13,9 @@ protected:
     SolverT solver;
 };
 
-using TwoSumParamSuite_Default = TwoSumParamSuite<default_::Solution>;
+using TwoSumParamSuite_Baseline = TwoSumParamSuite<baseline::Solution>;
 
-TEST_P(TwoSumParamSuite_Default, Works) {
+TEST_P(TwoSumParamSuite_Baseline, Works) {
     const auto& c     = GetParam().as_object();
     const auto& input = c.at("input").as_object();
 
@@ -27,4 +27,4 @@ TEST_P(TwoSumParamSuite_Default, Works) {
     EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
 }
 
-INSTANTIATE_TEST_SUITE_P(FromJson, TwoSumParamSuite_Default, ::testing::ValuesIn(kCases), gen_test_name);
+INSTANTIATE_TEST_SUITE_P(FromJson, TwoSumParamSuite_Baseline, ::testing::ValuesIn(kCases), gen_test_name);

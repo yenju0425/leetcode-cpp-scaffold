@@ -13,9 +13,9 @@ protected:
     SolverT solver;
 };
 
-using SameTreeParamSuite_Default = SameTreeParamSuite<default_::Solution>;
+using SameTreeParamSuite_Baseline = SameTreeParamSuite<baseline::Solution>;
 
-TEST_P(SameTreeParamSuite_Default, Works) {
+TEST_P(SameTreeParamSuite_Baseline, Works) {
     const auto& c     = GetParam().as_object();
     const auto& input = c.at("input").as_object();
 
@@ -27,4 +27,4 @@ TEST_P(SameTreeParamSuite_Default, Works) {
     EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
 }
 
-INSTANTIATE_TEST_SUITE_P(FromJson, SameTreeParamSuite_Default, ::testing::ValuesIn(kCases), gen_test_name);
+INSTANTIATE_TEST_SUITE_P(FromJson, SameTreeParamSuite_Baseline, ::testing::ValuesIn(kCases), gen_test_name);

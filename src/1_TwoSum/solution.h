@@ -1,6 +1,6 @@
 #include <util/leetcode.h>
 
-namespace default_ {
+namespace baseline {
 
 using namespace std;
 
@@ -22,4 +22,4 @@ public:
     }
 };
 
-}  // namespace default_
+}  // namespace baseline

@@ -1,6 +1,6 @@
 #include <util/leetcode.h>
 
-namespace default_ {
+namespace baseline {
 
 using namespace std;
 
@@ -23,4 +23,54 @@ public:
     }
 };
 
-}  // namespace default_
+}  // namespace baseline
+
+namespace recursive_v1 {
+
+class Solution {
+private:
+    TreeNode* _prev = nullptr;
+
+public:
+    void flatten(TreeNode* root) {
+        if (!root) {
+            return;
+        }
+
+        flatten(root->right);
+        flatten(root->left);
+
+        root->right = _prev;
+        root->left  = nullptr;
+        _prev       = root;
+    }
+};
+
+}  // namespace recursive_v1
+
+namespace recursive_v2 {
+
+class Solution {
+private:
+    TreeNode* _prev = nullptr;
+
+public:
+    void flatten(TreeNode* root) {
+        if (!root) {
+            return;
+        }
+
+        _prev = root;
+
+        flatten(root->left);
+        if (_prev != root) {
+            _prev->right = root->right;
+            root->right  = root->left;
+            root->left   = nullptr;
+        }
+
+        flatten(_prev->right);
+    }
+};
+
+}  // namespace recursive_v2
