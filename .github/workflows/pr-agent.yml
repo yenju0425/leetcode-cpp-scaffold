@@ -1,8 +1,10 @@
 name: PR Agent
+
 on:
   pull_request:
     types: [opened, reopened, ready_for_review]
   issue_comment:
+
 jobs:
   pr_agent_job:
     if: ${{ github.event.sender.type != 'Bot' }}
@@ -17,8 +19,5 @@ jobs:
         env:
           OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_AGENT_SETTINGS: |
-            [config]
-            model="gpt-5-mini"
-            [pr_reviewer]
-            extra_instructions="Focus on algorithm complexity (time/space), edge cases, and potential optimizations for LeetCode solutions"
+          config.model: "gpt-5-mini"
+          config.fallback_models: '["gpt-5-mini"]'

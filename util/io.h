@@ -15,6 +15,11 @@ struct CaseParam {
     std::string solver_name;
     RunFn run;
     const boost::json::value case_json;
+
+    friend std::ostream& operator<<(std::ostream& os, const CaseParam& param) {
+        os << "Input: " << param.case_json.at("input") << ", Output: " << param.case_json.at("output");
+        return os;
+    }
 };
 
 template <class Solver, class Adapter>
