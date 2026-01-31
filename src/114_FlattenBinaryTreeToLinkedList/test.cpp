@@ -6,8 +6,6 @@
 
 #include "solution.h"
 
-namespace {
-
 class FlattenBinaryTreeToLinkedListParamSuite : public ::testing::TestWithParam<io::CaseParam> {
 public:
     struct Adapter {
@@ -41,5 +39,3 @@ TEST_P(FlattenBinaryTreeToLinkedListParamSuite, ExampleOutput) {
 
 INSTANTIATE_TEST_SUITE_P(FromJson, FlattenBinaryTreeToLinkedListParamSuite, ::testing::ValuesIn(FlattenBinaryTreeToLinkedListParamSuite::kParams),
                          io::gen_flatten_name);
-
-}  // namespace

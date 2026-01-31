@@ -6,8 +6,6 @@
 
 #include "solution.h"
 
-namespace {
-
 class {{ test_suite_name }} : public ::testing::TestWithParam<io::CaseParam> {
 public:
     struct Adapter {
@@ -40,4 +38,3 @@ TEST_P({{ test_suite_name }}, ExampleOutput) {
 INSTANTIATE_TEST_SUITE_P(FromJson, {{ test_suite_name }}, ::testing::ValuesIn({{ test_suite_name }}::kParams),
                          io::gen_flatten_name);
 
-}  // namespace

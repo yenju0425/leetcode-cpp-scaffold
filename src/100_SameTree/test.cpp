@@ -6,8 +6,6 @@
 
 #include "solution.h"
 
-namespace {
-
 class SameTreeParamSuite : public ::testing::TestWithParam<io::CaseParam> {
 public:
     struct Adapter {
@@ -38,5 +36,3 @@ TEST_P(SameTreeParamSuite, ExampleOutput) {
 }
 
 INSTANTIATE_TEST_SUITE_P(FromJson, SameTreeParamSuite, ::testing::ValuesIn(SameTreeParamSuite::kParams), io::gen_flatten_name);
-
-}  // namespace

@@ -6,8 +6,6 @@
 
 #include "solution.h"
 
-namespace {
-
 class TwoSumParamSuite : public ::testing::TestWithParam<io::CaseParam> {
 public:
     struct Adapter {
@@ -38,5 +36,3 @@ TEST_P(TwoSumParamSuite, ExampleOutput) {
 }
 
 INSTANTIATE_TEST_SUITE_P(FromJson, TwoSumParamSuite, ::testing::ValuesIn(TwoSumParamSuite::kParams), io::gen_flatten_name);
-
-}  // namespace
