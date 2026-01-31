@@ -1,30 +1,38 @@
 #include <gtest/gtest.h>
+#include <util/io.h>
 #include <util/leetcode.h>
 
 #include <boost/json.hpp>
 
 #include "solution.h"
 
-static const boost::json::array kCases = load_test_cases_relative(__FILE__, "test_cases.json");
+class TwoSumParamSuite : public ::testing::TestWithParam<io::CaseParam> {
+public:
+    struct Adapter {
+        template <class Solver>
+        static boost::json::value invoke(Solver& s, const boost::json::value& case_json) {
+            const auto& c     = case_json.as_object();
+            const auto& input = c.at("input").as_object();
 
-template <class SolverT>
-class TwoSumParamSuite : public ::testing::TestWithParam<boost::json::value> {
-protected:
-    SolverT solver;
+            auto nums        = boost::json::value_to<std::vector<int>>(input.at("nums"));
+            const int target = boost::json::value_to<int>(input.at("target"));
+            return boost::json::value_from(s.twoSum(nums, target));
+        }
+    };
+
+    static inline const std::vector<io::CaseParam> kParams =
+        io::build_params_from_file(__FILE__, "test_cases.json",
+                                   {
+                                       {"Baseline", io::make_runner<baseline::Solution, Adapter>()},
+                                   });
 };
 
-using TwoSumParamSuite_Baseline = TwoSumParamSuite<baseline::Solution>;
+TEST_P(TwoSumParamSuite, ExampleOutput) {
+    const auto& p = GetParam();
+    const auto& c = p.case_json.as_object();
 
-TEST_P(TwoSumParamSuite_Baseline, Works) {
-    const auto& c     = GetParam().as_object();
-    const auto& input = c.at("input").as_object();
-
-    auto nums        = boost::json::value_to<std::vector<int>>(input.at("nums"));
-    const int target = boost::json::value_to<int>(input.at("target"));
-
-    boost::json::value got = boost::json::value_from(solver.twoSum(nums, target));
-
-    EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
+    boost::json::value got = p.run(p.case_json);
+    EXPECT_EQ(got, c.at("output")) << "solver=" << p.solver_name << ", case=" << c.at("name").as_string().c_str();
 }
 
-INSTANTIATE_TEST_SUITE_P(FromJson, TwoSumParamSuite_Baseline, ::testing::ValuesIn(kCases), gen_test_name);
+INSTANTIATE_TEST_SUITE_P(FromJson, TwoSumParamSuite, ::testing::ValuesIn(TwoSumParamSuite::kParams), io::gen_flatten_name);

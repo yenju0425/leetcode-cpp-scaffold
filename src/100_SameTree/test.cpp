@@ -1,30 +1,38 @@
 #include <gtest/gtest.h>
+#include <util/io.h>
 #include <util/leetcode.h>
 
 #include <boost/json.hpp>
 
 #include "solution.h"
 
-static const boost::json::array kCases = load_test_cases_relative(__FILE__, "test_cases.json");
+class SameTreeParamSuite : public ::testing::TestWithParam<io::CaseParam> {
+public:
+    struct Adapter {
+        template <class Solver>
+        static boost::json::value invoke(Solver& s, const boost::json::value& case_json) {
+            const auto& c     = case_json.as_object();
+            const auto& input = c.at("input").as_object();
 
-template <class SolverT>
-class SameTreeParamSuite : public ::testing::TestWithParam<boost::json::value> {
-protected:
-    SolverT solver;
+            Tree p(input.at("p"));
+            Tree q(input.at("q"));
+            return boost::json::value_from(s.isSameTree(p.root, q.root));
+        }
+    };
+
+    static inline const std::vector<io::CaseParam> kParams =
+        io::build_params_from_file(__FILE__, "test_cases.json",
+                                   {
+                                       {"Baseline", io::make_runner<baseline::Solution, Adapter>()},
+                                   });
 };
 
-using SameTreeParamSuite_Baseline = SameTreeParamSuite<baseline::Solution>;
+TEST_P(SameTreeParamSuite, ExampleOutput) {
+    const auto& p = GetParam();
+    const auto& c = p.case_json.as_object();
 
-TEST_P(SameTreeParamSuite_Baseline, Works) {
-    const auto& c     = GetParam().as_object();
-    const auto& input = c.at("input").as_object();
-
-    Tree p(input.at("p"));
-    Tree q(input.at("q"));
-
-    boost::json::value got = boost::json::value_from(solver.isSameTree(p.root, q.root));
-
-    EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
+    boost::json::value got = p.run(p.case_json);
+    EXPECT_EQ(got, c.at("output")) << "solver=" << p.solver_name << ", case=" << c.at("name").as_string().c_str();
 }
 
-INSTANTIATE_TEST_SUITE_P(FromJson, SameTreeParamSuite_Baseline, ::testing::ValuesIn(kCases), gen_test_name);
+INSTANTIATE_TEST_SUITE_P(FromJson, SameTreeParamSuite, ::testing::ValuesIn(SameTreeParamSuite::kParams), io::gen_flatten_name);

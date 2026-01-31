@@ -1,58 +1,41 @@
 #include <gtest/gtest.h>
+#include <util/io.h>
 #include <util/leetcode.h>
 
 #include <boost/json.hpp>
 
 #include "solution.h"
 
-static const boost::json::array kCases = load_test_cases_relative(__FILE__, "test_cases.json");
+class FlattenBinaryTreeToLinkedListParamSuite : public ::testing::TestWithParam<io::CaseParam> {
+public:
+    struct Adapter {
+        template <class Solver>
+        static boost::json::value invoke(Solver& s, const boost::json::value& case_json) {
+            const auto& c     = case_json.as_object();
+            const auto& input = c.at("input").as_object();
 
-template <class SolverT>
-class FlattenBinaryTreeToLinkedListParamSuite : public ::testing::TestWithParam<boost::json::value> {
-protected:
-    SolverT solver;
+            Tree tree(input.at("root"));
+            s.flatten(tree.root);
+            return tree.serialize_tree_level_order();
+        }
+    };
+
+    static inline const std::vector<io::CaseParam> kParams =
+        io::build_params_from_file(__FILE__, "test_cases.json",
+                                   {
+                                       {"Baseline", io::make_runner<baseline::Solution, Adapter>()},
+                                       {"RecursiveV1", io::make_runner<recursive_v1::Solution, Adapter>()},
+                                       {"RecursiveV2", io::make_runner<recursive_v2::Solution, Adapter>()},
+                                   });
 };
 
-using FlattenBinaryTreeToLinkedListParamSuite_Baseline    = FlattenBinaryTreeToLinkedListParamSuite<baseline::Solution>;
-using FlattenBinaryTreeToLinkedListParamSuite_RecursiveV1 = FlattenBinaryTreeToLinkedListParamSuite<recursive_v1::Solution>;
-using FlattenBinaryTreeToLinkedListParamSuite_RecursiveV2 = FlattenBinaryTreeToLinkedListParamSuite<recursive_v2::Solution>;
+TEST_P(FlattenBinaryTreeToLinkedListParamSuite, ExampleOutput) {
+    const auto& p = GetParam();
+    const auto& c = p.case_json.as_object();
 
-TEST_P(FlattenBinaryTreeToLinkedListParamSuite_Baseline, Works) {
-    const auto& c     = GetParam().as_object();
-    const auto& input = c.at("input").as_object();
-
-    Tree tree(input.at("root"));
-    solver.flatten(tree.root);
-
-    boost::json::value got = tree.serialize_tree_level_order();
-
-    EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
+    boost::json::value got = p.run(p.case_json);
+    EXPECT_EQ(got, c.at("output")) << "solver=" << p.solver_name << ", case=" << c.at("name").as_string().c_str();
 }
 
-TEST_P(FlattenBinaryTreeToLinkedListParamSuite_RecursiveV1, Works) {
-    const auto& c     = GetParam().as_object();
-    const auto& input = c.at("input").as_object();
-
-    Tree tree(input.at("root"));
-    solver.flatten(tree.root);
-
-    boost::json::value got = tree.serialize_tree_level_order();
-
-    EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
-}
-
-TEST_P(FlattenBinaryTreeToLinkedListParamSuite_RecursiveV2, Works) {
-    const auto& c     = GetParam().as_object();
-    const auto& input = c.at("input").as_object();
-
-    Tree tree(input.at("root"));
-    solver.flatten(tree.root);
-
-    boost::json::value got = tree.serialize_tree_level_order();
-
-    EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
-}
-
-INSTANTIATE_TEST_SUITE_P(FromJson, FlattenBinaryTreeToLinkedListParamSuite_Baseline, ::testing::ValuesIn(kCases), gen_test_name);
-INSTANTIATE_TEST_SUITE_P(FromJson, FlattenBinaryTreeToLinkedListParamSuite_RecursiveV1, ::testing::ValuesIn(kCases), gen_test_name);
-INSTANTIATE_TEST_SUITE_P(FromJson, FlattenBinaryTreeToLinkedListParamSuite_RecursiveV2, ::testing::ValuesIn(kCases), gen_test_name);
+INSTANTIATE_TEST_SUITE_P(FromJson, FlattenBinaryTreeToLinkedListParamSuite, ::testing::ValuesIn(FlattenBinaryTreeToLinkedListParamSuite::kParams),
+                         io::gen_flatten_name);

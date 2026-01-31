@@ -5,6 +5,28 @@
 
 #include <boost/json.hpp>
 #include <string>
+#include <unordered_map>
+
+namespace io {
+
+using RunFn = boost::json::value (*)(const boost::json::value& case_json);
+
+struct CaseParam {
+    std::string solver_name;
+    RunFn run;
+    const boost::json::value case_json;
+};
+
+template <class Solver, class Adapter>
+boost::json::value run_with_adapter(const boost::json::value& case_json) {
+    Solver s;
+    return Adapter::template invoke(s, case_json);
+}
+
+template <class Solver, class Adapter>
+constexpr io::RunFn make_runner() {
+    return &run_with_adapter<Solver, Adapter>;
+}
 
 boost::json::value load_json(const std::string& filepath);
 
@@ -14,6 +36,11 @@ boost::json::value load_json_relative(const std::string& file_path, const std::s
 
 boost::json::array load_test_cases_relative(const std::string& file_path, const std::string& relative_path);
 
-std::string gen_test_name(const ::testing::TestParamInfo<boost::json::value>& info);
+std::string gen_flatten_name(const ::testing::TestParamInfo<CaseParam>& info);
+
+std::vector<io::CaseParam> build_params_from_file(const std::string& dir_path, const std::string& file_name,
+                                                  const std::unordered_map<std::string, io::RunFn>& solvers);
+
+}  // namespace io
 
 #endif /* UTIL_IO_H */

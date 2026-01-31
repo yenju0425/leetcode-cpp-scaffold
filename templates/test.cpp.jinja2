@@ -1,28 +1,40 @@
 #include <gtest/gtest.h>
+#include <util/io.h>
 #include <util/leetcode.h>
 
 #include <boost/json.hpp>
 
 #include "solution.h"
 
-static const boost::json::array kCases = load_test_cases_relative(__FILE__, "test_cases.json");
+class {{ test_suite_name }} : public ::testing::TestWithParam<io::CaseParam> {
+public:
+    struct Adapter {
+        template <class Solver>
+        static boost::json::value invoke(Solver& s, const boost::json::value& case_json) {
+            const auto& c     = case_json.as_object();
+            const auto& input = c.at("input").as_object();
 
-template <class SolverT>
-class {{ test_suite_name }} : public ::testing::TestWithParam<boost::json::value> {
-protected:
-    SolverT solver;
+            // TODO:
+            return {};
+        }
+    };
+
+    static inline const std::vector<io::CaseParam> kParams =
+        io::build_params_from_file(__FILE__, "test_cases.json",
+                                   {
+                                       {"Baseline", io::make_runner<baseline::Solution, Adapter>()},
+                                       // TODO:
+                                   });
 };
 
-using {{ test_suite_name }}_Baseline = {{ test_suite_name }}<baseline::Solution>;
+TEST_P({{ test_suite_name }}, ExampleOutput) {
+    const auto& p = GetParam();
+    const auto& c = p.case_json.as_object();
 
-TEST_P({{ test_suite_name }}_Baseline, Works) {
-    const auto& c     = GetParam().as_object();
-    const auto& input = c.at("input").as_object();
-
-    // TODO: Extract input values from JSON, and call solver methods
-    boost::json::value got;
-
-    EXPECT_EQ(got, c.at("output")) << "case=" << c.at("name").as_string();
+    boost::json::value got = p.run(p.case_json);
+    EXPECT_EQ(got, c.at("output")) << "solver=" << p.solver_name << ", case=" << c.at("name").as_string().c_str();
 }
 
-INSTANTIATE_TEST_SUITE_P(FromJson, {{ test_suite_name }}_Baseline, ::testing::ValuesIn(kCases), gen_test_name);
+INSTANTIATE_TEST_SUITE_P(FromJson, {{ test_suite_name }}, ::testing::ValuesIn({{ test_suite_name }}::kParams),
+                         io::gen_flatten_name);
+
