@@ -34,9 +34,8 @@ std::string io::gen_flatten_name(const ::testing::TestParamInfo<CaseParam>& info
 
     std::string name = std::string(info.param.solver_name) + "_" + std::string(c.at("name").as_string().c_str());
 
-    for (auto& ch : name) {
-        if (!(std::isalnum(static_cast<unsigned char>(ch)) || ch == '_')) ch = '_';
-    }
+    std::replace_if(name.begin(), name.end(), [](char ch) { return !(std::isalnum(static_cast<unsigned char>(ch)) || ch == '_'); }, '_');
+
     if (name.empty() || !(std::isalpha(static_cast<unsigned char>(name[0])) || name[0] == '_')) {
         name.insert(name.begin(), '_');
     }
