@@ -1,9 +1,5 @@
-## Description
-<!-- Describe your changes here -->
-
 ## Problem
-<!-- Link to LeetCode problem if applicable -->
-- Problem: 
+- Problem: <!-- Link to LeetCode problem if applicable -->
 - Difficulty: 
 
 ## Type of Change
