@@ -29,6 +29,26 @@ public:
 
 }  // namespace baseline
 
+namespace recursive {
+
+class Solution {
+private:
+    bool isMirror(TreeNode* p, TreeNode* q) {
+        return (!p && !q) || (p && q && p->val == q->val && isMirror(p->left, q->right) && isMirror(p->right, q->left));
+    }
+
+public:
+    bool isSymmetric(TreeNode* root) {
+        if (!root) {
+            return true;
+        }
+
+        return isMirror(root->left, root->right);
+    }
+};
+
+}  // namespace recursive
+
 namespace bfs {
 
 class Solution {

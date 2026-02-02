@@ -26,6 +26,7 @@ public:
                                        {"Baseline", io::make_runner<baseline::Solution, Adapter>()},
                                        {"BFS", io::make_runner<bfs::Solution, Adapter>()},
                                        {"BFS_Optimized", io::make_runner<bfs_optimized::Solution, Adapter>()},
+                                       {"Recursive", io::make_runner<recursive::Solution, Adapter>()},
                                    });
 };
 
