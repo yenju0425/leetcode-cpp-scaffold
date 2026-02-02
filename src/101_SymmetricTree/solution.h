@@ -11,7 +11,7 @@ private:
     }
 
     void invertTree(TreeNode* root) {
-        if (root == nullptr) {
+        if (!root) {
             return;
         }
 
@@ -22,6 +22,10 @@ private:
 
 public:
     bool isSymmetric(TreeNode* root) {
+        if (!root) {
+            return true;
+        }
+
         invertTree(root->right);
         return isSameTree(root->left, root->right);
     }
@@ -104,7 +108,9 @@ namespace bfs_optimized {
 class Solution {
 public:
     bool isSymmetric(TreeNode* root) {
-        if (!root) return true;
+        if (!root) {
+            return true;
+        }
 
         std::queue<std::pair<TreeNode*, TreeNode*>> pending;
         pending.push({root->left, root->right});
