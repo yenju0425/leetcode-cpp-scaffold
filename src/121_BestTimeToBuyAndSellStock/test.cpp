@@ -14,7 +14,7 @@ public:
             const auto& c     = case_json.as_object();
             const auto& input = c.at("input").as_object();
 
-	    auto prices = boost::json::value_to<std::vector<int>>(input.at("prices"));
+            auto prices = boost::json::value_to<std::vector<int>>(input.at("prices"));
             return boost::json::value_from(s.maxProfit(prices));
         }
     };

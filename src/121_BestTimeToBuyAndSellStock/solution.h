@@ -6,13 +6,13 @@ using namespace std;
 
 class Solution {
 public:
-    int maxProfit(vector<int> prices){
-        int buyin = std::numeric_limits<int>::max(),  max_profit = 0;
+    int maxProfit(vector<int> prices) {
+        int entry_price = std::numeric_limits<int>::max(), best_profit = 0;
         for (auto& p : prices) {
-	    buyin = std::min(buyin, p);
-	    max_profit = std::max(max_profit, p - buyin);
-	}
-	return max_profit;
+            entry_price = std::min(entry_price, p);
+            best_profit = std::max(best_profit, p - entry_price);
+        }
+        return best_profit;
     }
 };
 
