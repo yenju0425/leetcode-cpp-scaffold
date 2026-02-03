@@ -5,6 +5,7 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:  # Allow manual trigger for testing
 
 jobs:
   build-and-test:
@@ -49,10 +50,15 @@ jobs:
     name: Submit to LeetCode
     runs-on: ubuntu-latest
     needs: build-and-test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    # Run on push to main/master, or manually enable for testing
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
+      (github.event_name == 'workflow_dispatch')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need 2 commits to compare
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -64,11 +70,26 @@ jobs:
           pip install playwright
           playwright install chromium
 
+      - name: Debug info
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Branch: ${{ github.ref_name }}"
+          git log -2 --oneline
+
       - name: Get changed files
         id: changed
         run: |
           # Find changed files in this commit
-          git diff HEAD~1..HEAD --name-only > /tmp/changed_files.txt
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # For PR, compare with base branch
+            git diff origin/${{ github.base_ref }}...HEAD --name-only > /tmp/changed_files.txt
+          else
+            # For push, compare with previous commit
+            git diff HEAD~1..HEAD --name-only > /tmp/changed_files.txt
+          fi
+          
+          echo "Changed files:"
           cat /tmp/changed_files.txt
 
       - name: Submit solutions to LeetCode
