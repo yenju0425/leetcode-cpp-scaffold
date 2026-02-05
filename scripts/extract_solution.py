@@ -8,9 +8,9 @@ Handles:
 - Extracts clean Solution class for LeetCode
 
 Usage:
-    python extract_solution.py solution.h              # Extract baseline
-    python extract_solution.py solution.h --all        # List all namespaces
-    python extract_solution.py solution.h --ns bfs     # Extract specific namespace
+    python scripts/extract_solution.py solution.h              # Extract baseline
+    python scripts/extract_solution.py solution.h --all        # List all namespaces
+    python scripts/extract_solution.py solution.h --ns bfs     # Extract specific namespace
 """
 
 import argparse

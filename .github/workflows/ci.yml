@@ -50,10 +50,13 @@ jobs:
     name: Submit to LeetCode
     runs-on: ubuntu-latest
     needs: build-and-test
-    # Run on push to main/master, or manually enable for testing
+    # Run on: PR from same repo, or push to main/master, or manual trigger
     if: |
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
-      (github.event_name == 'workflow_dispatch')
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+      || (github.event_name == 'push' &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
+      || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -63,116 +66,18 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
+          python-version: '3.11' # Use Python 3.11 for better compatibility with dependencies
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
           pip install playwright
-          playwright install chromium
-
-      - name: Debug info
-        run: |
-          echo "Event: ${{ github.event_name }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "Branch: ${{ github.ref_name }}"
-          git log -2 --oneline
+          playwright install chromium --with-deps
 
       - name: Get changed files
-        id: changed
-        run: |
-          # Find changed files in this commit
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # For PR, compare with base branch
-            git diff origin/${{ github.base_ref }}...HEAD --name-only > /tmp/changed_files.txt
-          else
-            # For push, compare with previous commit
-            git diff HEAD~1..HEAD --name-only > /tmp/changed_files.txt
-          fi
-          
-          echo "Changed files:"
-          cat /tmp/changed_files.txt
+        run: bash scripts/get_changed_files.sh "${{ github.event_name }}" "${{ github.base_ref }}"
 
       - name: Submit solutions to LeetCode
         env:
           LEETCODE_USERNAME: ${{ secrets.LEETCODE_USERNAME }}
           LEETCODE_PASSWORD: ${{ secrets.LEETCODE_PASSWORD }}
-        run: |
-          # Iterate through all changed solution.h files
-          for file in $(cat /tmp/changed_files.txt | grep 'solution.h'); do
-            # Extract problem directory and name
-            problem_dir=$(dirname "$file")
-            problem_name=$(basename "$problem_dir")
-            
-            # Extract problem ID and slug
-            # Example: src/1_TwoSum -> 1, two-sum
-            problem_id=$(echo "$problem_name" | grep -oE '^[0-9]+' || echo "")
-            if [ -z "$problem_id" ]; then
-              echo "Skipping $problem_name (cannot extract problem ID)"
-              continue
-            fi
-            
-            # Convert directory name to slug (e.g. TwoSum -> two-sum)
-            problem_slug=$(echo "$problem_name" | sed 's/^[0-9]*_//' | sed 's/\([A-Z]\)/-\L\1/g' | sed 's/^-//')
-            
-            echo ""
-            echo "=========================================="
-            echo "Processing: [$problem_id] $problem_slug"
-            echo "=========================================="
-            
-            solution_file="$problem_dir/solution.h"
-            if [ ! -f "$solution_file" ]; then
-              echo "Warning: $solution_file not found"
-              continue
-            fi
-            
-            # Get all namespaces in solution.h
-            namespaces=$(python extract_solution.py "$solution_file" --all 2>/dev/null | grep "^\s*-" | sed 's/.*- //')
-            
-            if [ -z "$namespaces" ]; then
-              echo "Warning: No namespaces found in $solution_file"
-              continue
-            fi
-            
-            echo "Found namespaces: $namespaces"
-            
-            # Submit each namespace solution
-            for ns in $namespaces; do
-              echo ""
-              echo "--- Submitting namespace: $ns ---"
-              
-              # Extract clean solution code
-              tmp_file="/tmp/solution_${problem_id}_${ns}.cpp"
-              python extract_solution.py "$solution_file" --ns "$ns" --output "$tmp_file"
-              
-              if [ ! -f "$tmp_file" ]; then
-                echo "Failed to extract namespace $ns"
-                continue
-              fi
-              
-              echo "Extracted code:"
-              head -20 "$tmp_file"
-              echo "..."
-              
-              # Submit to LeetCode
-              python submit_to_leetcode.py \
-                --problem-slug "$problem_slug" \
-                --file "$tmp_file" \
-                --lang "cpp" || echo "Submission failed: $problem_slug ($ns)"
-              
-              # Small delay between submissions
-              sleep 5
-            done
-          done
-        continue-on-error: true
-
-      - name: Comment PR with results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '✅ Local unit tests passed!\n\nAttempted submission to LeetCode for verification.'
-            })
+        run: bash scripts/submit_to_leetcode.sh
