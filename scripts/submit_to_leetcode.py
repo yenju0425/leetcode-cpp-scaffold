@@ -12,6 +12,8 @@ Usage:
 
 
 import argparse
+import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -57,6 +59,45 @@ LANG_TO_LEETCODE = {
 # Helper Functions
 # ============================================================================
 
+def get_cookies_path():
+    """Get the path to store cookies."""
+    cache_dir = os.path.expanduser("~/.cache/leetcode-submit")
+    os.makedirs(cache_dir, exist_ok=True)
+    return os.path.join(cache_dir, "cookies.json")
+
+
+def save_cookies(context):
+    """Save browser cookies to file."""
+    try:
+        cookies = context.cookies()
+        cookies_path = get_cookies_path()
+        with open(cookies_path, 'w') as f:
+            json.dump(cookies, f, indent=2)
+        print(f"  ✓ Cookies saved to {cookies_path}")
+        return True
+    except Exception as e:
+        print(f"  Warning: Failed to save cookies: {e}")
+        return False
+
+
+def load_cookies(context):
+    """Load cookies from file into browser context."""
+    try:
+        cookies_path = get_cookies_path()
+        if not os.path.exists(cookies_path):
+            return False
+
+        with open(cookies_path, 'r') as f:
+            cookies = json.load(f)
+
+        context.add_cookies(cookies)
+        print(f"  ✓ Loaded {len(cookies)} cookies")
+        return True
+    except Exception as e:
+        print(f"  Warning: Failed to load cookies: {e}")
+        return False
+
+
 def wait_for_element(page, selector, timeout=10000):
     """Wait for element to appear."""
     try:
@@ -95,39 +136,52 @@ def submit_solution(
         page = context.new_page()
 
         try:
-            print("[1/5] Visiting LeetCode...")
-            page.goto("https://leetcode.com/", wait_until="domcontentloaded")
-            time.sleep(2)
+            # Try to load existing cookies first
+            print("[1/5] Checking for saved session...")
+            cookies_loaded = load_cookies(context)
 
-            # Wait for Cloudflare check to complete
-            print("  Waiting for Cloudflare check...")
-            max_cloudflare_wait = 15
-            for i in range(max_cloudflare_wait):
-                page_title = page.title()
-                if "Just a moment" not in page_title:
-                    break
-                print(f"  [{i+1}/{max_cloudflare_wait}] Still on Cloudflare check...", flush=True)
+            is_logged_in = False
+            if cookies_loaded:
+                print("  Verifying saved session...")
+                page.goto("https://leetcode.com/", wait_until="domcontentloaded")
                 time.sleep(1)
 
-            # Log final page state
-            page_title = page.title()
-            page_url = page.url
-            print(f"  Page loaded: {page_title}")
-            print(f"  URL: {page_url}")
+                # Check if logged in with cookies
+                try:
+                    page.goto("https://leetcode.com/profile/",
+                              wait_until="domcontentloaded", timeout=5000)
+                    if page.url.startswith("https://leetcode.com/u/"):
+                        print("  ✅ Logged in with saved cookies! (bypassed Cloudflare)")
+                        is_logged_in = True
+                    else:
+                        print("  ⚠ Saved cookies expired, falling back to login")
+                        is_logged_in = False
+                except:
+                    print("  ⚠ Saved cookies expired, falling back to login")
+                    is_logged_in = False
+            else:
+                print("  No saved session found, will attempt login")
+                page.goto("https://leetcode.com/", wait_until="domcontentloaded")
+                time.sleep(2)
 
-            # Check if still on Cloudflare
-            if "Just a moment" in page_title:
-                print("  ❌ Stuck on Cloudflare protection")
-                return False
+                # Wait for Cloudflare check
+                print("  Waiting for Cloudflare check...")
+                max_cloudflare_wait = 15
+                for i in range(max_cloudflare_wait):
+                    page_title = page.title()
+                    if "Just a moment" not in page_title:
+                        break
+                    print(f"  [{i+1}/{max_cloudflare_wait}] Still on Cloudflare check...", flush=True)
+                    time.sleep(1)
 
-            # Check if already logged in
-            is_logged_in = False
-            try:
-                page.goto("https://leetcode.com/profile/",
-                          wait_until="domcontentloaded", timeout=5000)
-                is_logged_in = page.url.startswith("https://leetcode.com/profile/")
-            except:
-                pass
+                page_title = page.title()
+                page_url = page.url
+                print(f"  Page loaded: {page_title}")
+                print(f"  URL: {page_url}")
+
+                if "Just a moment" in page_title:
+                    print("  ❌ Stuck on Cloudflare protection")
+                    return False
 
             if not is_logged_in:
                 print("[2/5] Logging in...")
@@ -283,6 +337,9 @@ def submit_solution(
                     return False
 
                 print("  ✅ Login successful")
+
+                # Save cookies for future use
+                save_cookies(context)
 
             print("[3/5] Navigate to problem...")
             problem_url = f"https://leetcode.com/problems/{problem_slug}/"
@@ -493,14 +550,74 @@ def main():
         action="store_true",
         help="Show browser window (for debugging)"
     )
+    parser.add_argument(
+        "--save-cookies-only",
+        action="store_true",
+        help="Only login and save cookies, then exit (for initial setup)"
+    )
 
     args = parser.parse_args()
 
+    # Special mode: Only save cookies
+    if args.save_cookies_only:
+        print("=== Cookie Setup Mode ===")
+        print("This will open a browser for you to login manually.")
+        print("After logging in successfully, press Ctrl+C to save cookies.\n")
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=False)  # Always show browser
+            context = browser.new_context(
+                viewport={'width': 1920, 'height': 1080},
+                user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            )
+            page = context.new_page()
+
+            print("Opening LeetCode...")
+            page.goto("https://leetcode.com/")
+            time.sleep(2)
+
+            print("\n📌 Instructions:")
+            print("  1. Login manually in the browser window")
+            print("  2. Solve Cloudflare Turnstile CAPTCHA if prompted")
+            print("  3. Wait until you see LeetCode homepage")
+            print("  4. Press Ctrl+C in this terminal to save cookies")
+            print("\nWaiting for you to login...")
+
+            try:
+                # Wait for user to press Ctrl+C
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print("\n\nSaving cookies...")
+
+            # Save cookies before closing
+            try:
+                cookies = context.cookies()
+                if cookies:
+                    cookies_path = get_cookies_path()
+                    with open(cookies_path, 'w') as f:
+                        json.dump(cookies, f, indent=2)
+                    print(f"✅ {len(cookies)} cookies saved to {cookies_path}")
+                    print("\n💡 You can now run submissions without needing to login each time!")
+                    print(
+                        "   Example: python scripts/submit_to_leetcode.py --problem-slug two-sum --file src/1_TwoSum/solution.h --lang cpp")
+                    sys.exit(0)
+                else:
+                    print("⚠ No cookies found. Did you login?")
+                    sys.exit(1)
+            except Exception as e:
+                print(f"❌ Error saving cookies: {e}")
+                sys.exit(1)
+            finally:
+                browser.close()
+
+    # Normal mode: Submit solution
     # Verify required parameters
     if not args.username or not args.password:
         print("Error: Please provide LeetCode username and password", file=sys.stderr)
         print("  Method 1: Pass --username and --password", file=sys.stderr)
         print("  Method 2: Set LEETCODE_USERNAME and LEETCODE_PASSWORD env vars", file=sys.stderr)
+        print("  Method 3 (RECOMMENDED): Use --save-cookies-only to login once and save cookies", file=sys.stderr)
         sys.exit(1)
 
     # Read code file
