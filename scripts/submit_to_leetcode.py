@@ -338,6 +338,166 @@ def wait_for_cloudflare(page, label: str = "", max_wait: int = 30) -> bool:
 
 
 # ============================================================================
+# Cloudflare Turnstile Checkbox Solver
+# ============================================================================
+
+def solve_turnstile(page, max_attempts: int = 3) -> bool:
+    """
+    Attempt to find and click the Cloudflare Turnstile "Verify you are human"
+    checkbox. The checkbox lives inside an iframe from challenges.cloudflare.com.
+
+    Strategy:
+      1. Locate the Turnstile iframe on the page
+      2. Get its bounding box (position on screen)
+      3. Simulate human mouse movement toward the checkbox area
+      4. Click it via the *page* coordinate system (not inside the frame)
+      5. Wait and verify the checkbox state changed
+
+    Returns True if Turnstile appears solved, False otherwise.
+    """
+    print("  ── Attempting to solve Cloudflare Turnstile ──")
+
+    for attempt in range(1, max_attempts + 1):
+        print(f"  Attempt {attempt}/{max_attempts}")
+
+        # ── Step A: Find the Turnstile iframe element ────────────────
+        turnstile_iframe = None
+        for selector in [
+            "iframe[src*='challenges.cloudflare.com']",
+            "iframe[title*='Cloudflare']",
+            "iframe[title*='Widget']",
+            "iframe[src*='turnstile']",
+        ]:
+            loc = page.locator(selector).first
+            if loc.count() > 0:
+                turnstile_iframe = loc
+                print(f"    Found Turnstile iframe: {selector}")
+                break
+
+        if turnstile_iframe is None:
+            # Maybe Turnstile rendered as a div container instead
+            for selector in [
+                "div.cf-turnstile",
+                "div[class*='turnstile']",
+                "div[id*='turnstile']",
+                "div[id*='cf-']",
+            ]:
+                loc = page.locator(selector).first
+                if loc.count() > 0:
+                    turnstile_iframe = loc
+                    print(f"    Found Turnstile container: {selector}")
+                    break
+
+        if turnstile_iframe is None:
+            print("    ⚠ Could not locate Turnstile widget")
+            # List all iframes for diagnostics
+            try:
+                all_iframes = page.locator("iframe")
+                count = all_iframes.count()
+                print(f"    Page has {count} iframe(s):")
+                for idx in range(min(count, 10)):
+                    frame_el = all_iframes.nth(idx)
+                    src = frame_el.get_attribute("src") or "(no src)"
+                    title = frame_el.get_attribute("title") or "(no title)"
+                    print(f"      [{idx}] title='{title}' src='{src[:120]}'")
+            except Exception as e:
+                print(f"    Could not enumerate iframes: {e}")
+            take_screenshot(page, f"turnstile_not_found_attempt{attempt}")
+
+            if attempt < max_attempts:
+                human_delay(2.0, 4.0)
+                continue
+            return False
+
+        # ── Step B: Get the bounding box of the iframe ───────────────
+        try:
+            box = turnstile_iframe.bounding_box()
+        except Exception as e:
+            print(f"    Could not get bounding box: {e}")
+            take_screenshot(page, f"turnstile_no_bbox_attempt{attempt}")
+            if attempt < max_attempts:
+                human_delay(2.0, 4.0)
+                continue
+            return False
+
+        if not box:
+            print("    ⚠ Turnstile widget has no bounding box (hidden?)")
+            take_screenshot(page, f"turnstile_hidden_attempt{attempt}")
+            if attempt < max_attempts:
+                human_delay(2.0, 4.0)
+                continue
+            return False
+
+        print(f"    Turnstile bbox: x={box['x']:.0f} y={box['y']:.0f} "
+              f"w={box['width']:.0f} h={box['height']:.0f}")
+
+        # ── Step C: Calculate checkbox click target ──────────────────
+        # The checkbox is typically on the left side of the Turnstile widget,
+        # roughly 25-35px from the left edge, vertically centered.
+        checkbox_x = int(box["x"] + 28 + random.randint(-3, 3))
+        checkbox_y = int(box["y"] + box["height"] / 2 + random.randint(-3, 3))
+
+        print(f"    Clicking checkbox at ({checkbox_x}, {checkbox_y})")
+
+        # ── Step D: Human-like approach to the checkbox ──────────────
+        # First, move mouse somewhere random on the page
+        human_mouse_move(page)
+        human_delay(0.4, 1.0)
+
+        # Then move toward the checkbox with natural path
+        human_mouse_move(page, checkbox_x, checkbox_y)
+        human_delay(0.2, 0.5)
+
+        # Click!
+        page.mouse.click(checkbox_x, checkbox_y)
+        print("    ✓ Clicked Turnstile checkbox")
+        take_screenshot(page, f"turnstile_clicked_attempt{attempt}")
+
+        # ── Step E: Wait and verify ──────────────────────────────────
+        # After clicking, Turnstile runs its challenge (spinning, then ✓).
+        # We wait for the Sign In button to become enabled as the signal.
+        print("    Waiting for Turnstile to verify...", end="", flush=True)
+        for wait_i in range(30):  # up to 15 seconds
+            time.sleep(0.5)
+            print(".", end="", flush=True)
+
+            # Check if Sign In button is now enabled
+            try:
+                sign_in = page.locator("button:has-text('Sign In')").first
+                if sign_in.count() > 0 and not sign_in.is_disabled():
+                    print(f"\n    ✅ Turnstile solved! (took ~{(wait_i+1)*0.5:.1f}s)")
+                    take_screenshot(page, "turnstile_solved")
+                    return True
+            except Exception:
+                pass
+
+            # Also check if the Turnstile iframe shows a checkmark
+            # (its size/content may change)
+            try:
+                new_box = turnstile_iframe.bounding_box()
+                if new_box and new_box != box:
+                    # Widget resized — might be showing success
+                    pass
+            except Exception:
+                pass
+
+        print("\n    ⚠ Turnstile did not resolve in 15s")
+        take_screenshot(page, f"turnstile_timeout_attempt{attempt}")
+
+        if attempt < max_attempts:
+            print("    Retrying...")
+            human_delay(2.0, 4.0)
+            # Move mouse away and back
+            human_mouse_move(page)
+            human_delay(1.0, 2.0)
+
+    print("  ❌ All Turnstile solve attempts failed")
+    take_screenshot(page, "turnstile_all_failed", full_page=True)
+    dump_page_info(page, "turnstile_failed")
+    return False
+
+
+# ============================================================================
 # Core Submission Logic
 # ============================================================================
 
@@ -552,6 +712,20 @@ def submit_solution(
 
                 take_screenshot(page, "02_form_filled")
 
+                # ── Solve Cloudflare Turnstile checkbox ──────────────────
+                # Check if Sign In is already enabled (no Turnstile)
+                login_btn_check = page.locator("button:has-text('Sign In')").first
+                if login_btn_check.count() > 0 and login_btn_check.is_disabled():
+                    print("  Sign In button is disabled — Turnstile detected")
+                    turnstile_ok = solve_turnstile(page, max_attempts=3)
+                    if not turnstile_ok:
+                        print("  ❌ Could not solve Cloudflare Turnstile")
+                        print("  💡 Tip: Run with --save-cookies-only to login")
+                        print("     manually and save cookies for CI use.")
+                        return False
+                else:
+                    print("  ✓ No Turnstile challenge (or already solved)")
+
                 # ── Find Sign In button ──────────────────────────────────
                 print("  Looking for Sign In button...")
                 login_btn = None
@@ -572,28 +746,17 @@ def submit_solution(
                     dump_page_info(page, "no_signin_button")
                     return False
 
-                # Wait for button to become enabled (Cloudflare Turnstile
-                # often keeps it disabled until the invisible challenge passes)
-                print("  Waiting for Sign In button to be enabled...")
+                # Final safety check: wait a bit more for button to enable
+                print("  Verifying Sign In button is enabled...")
                 button_enabled = False
-                max_button_wait = 30  # increased from 10s to 30s
-                for i in range(max_button_wait * 2):  # check every 0.5s
-                    is_disabled = login_btn.is_disabled()
-                    if not is_disabled:
-                        print("  ✓ Sign In button is now enabled")
+                max_button_wait = 10
+                for i in range(max_button_wait * 2):
+                    if not login_btn.is_disabled():
+                        print("  ✓ Sign In button is enabled")
                         button_enabled = True
                         break
                     if i == 0:
-                        print(
-                            "  Button is disabled — likely waiting for "
-                            "Cloudflare Turnstile to complete..."
-                        )
-                    if i % 10 == 9:
-                        elapsed = (i + 1) * 0.5
-                        print(f"  Still waiting... ({elapsed:.0f}s elapsed)")
-                        take_screenshot(page, f"02_button_disabled_{elapsed:.0f}s")
-                        # Move mouse around — Turnstile may need interaction
-                        human_mouse_move(page)
+                        print("  Button still disabled, waiting...")
                     time.sleep(0.5)
 
                 if not button_enabled:
@@ -601,14 +764,10 @@ def submit_solution(
                         f"  ❌ Error: Sign In button still disabled after "
                         f"{max_button_wait} seconds"
                     )
-                    print(
-                        "  This is almost certainly Cloudflare Turnstile "
-                        "blocking the automated browser."
-                    )
                     take_screenshot(page, "02_button_still_disabled", full_page=True)
                     dump_page_info(page, "button_disabled_final")
 
-                    # Extra diagnostics: check for Turnstile iframe
+                    # Diagnostics: list all frames
                     try:
                         turnstile_frames = page.frames
                         print(f"  Page has {len(turnstile_frames)} frames:")
