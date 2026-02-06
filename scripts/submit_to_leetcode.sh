@@ -47,7 +47,7 @@ for file in $(cat /tmp/changed_files.txt | grep 'solution.h' || true); do
     python scripts/extract_solution.py "$solution_file" --ns "$ns" --output "$tmp_file" || { echo "❌ Extraction failed"; exit 1; }
     [ ! -f "$tmp_file" ] && { echo "❌ File not created"; exit 1; }
     
-    if python scripts/submit_to_leetcode.py --problem-slug "$problem_slug" --file "$tmp_file" --lang "cpp"; then
+    if python scripts/submit_to_leetcode.py --problem-slug "$problem_slug" --file "$tmp_file" --lang "cpp" --screenshot-dir "${SCREENSHOT_DIR:-/tmp/leetcode-screenshots}"; then
       echo "✅ ACCEPTED"
       success_count=$((success_count + 1))
     else
