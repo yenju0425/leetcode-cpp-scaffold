@@ -73,6 +73,18 @@ jobs:
           pip install playwright
           playwright install chromium --with-deps
 
+      - name: Restore saved session
+        env:
+          LEETCODE_STORAGE_STATE: ${{ secrets.LEETCODE_STORAGE_STATE }}
+        run: |
+          if [ -z "$LEETCODE_STORAGE_STATE" ]; then
+            echo "⚠ No LEETCODE_STORAGE_STATE secret set, skipping"
+            exit 0
+          fi
+          mkdir -p ~/.cache/leetcode-submit
+          echo "$LEETCODE_STORAGE_STATE" | base64 -d > ~/.cache/leetcode-submit/storage_state.json
+          echo "✅ Storage state restored from secret"
+
       - name: Get changed files
         run: bash scripts/get_changed_files.sh "${{ github.event_name }}" "${{ github.base_ref }}"
 

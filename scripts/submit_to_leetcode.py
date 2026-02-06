@@ -251,46 +251,107 @@ def dump_page_info(page, label: str):
 
 
 # ============================================================================
-# Cookie Helpers
+# Storage State Helpers (cookies + localStorage + IndexedDB)
 # ============================================================================
 
-def get_cookies_path():
-    """Get the path to store cookies."""
+def get_storage_state_dir():
+    """Get the cache directory for storage state."""
     cache_dir = os.path.expanduser("~/.cache/leetcode-submit")
     os.makedirs(cache_dir, exist_ok=True)
-    return os.path.join(cache_dir, "cookies.json")
+    return cache_dir
 
 
-def save_cookies(context):
-    """Save browser cookies to file."""
+def get_storage_state_path():
+    """Get the path to store Playwright storage state."""
+    return os.path.join(get_storage_state_dir(), "storage_state.json")
+
+
+def get_cookies_path():
+    """Legacy cookies path (for backward compat)."""
+    return os.path.join(get_storage_state_dir(), "cookies.json")
+
+
+def has_saved_state():
+    """Check if a saved storage state or cookies file exists."""
+    return (
+        os.path.exists(get_storage_state_path())
+        or os.path.exists(get_cookies_path())
+    )
+
+
+def save_storage_state(context):
+    """
+    Save full browser storage state (cookies + localStorage).
+    This is far more reliable than saving cookies alone.
+    """
     try:
-        cookies = context.cookies()
-        cookies_path = get_cookies_path()
-        with open(cookies_path, 'w') as f:
-            json.dump(cookies, f, indent=2)
-        print(f"  ✓ Cookies saved to {cookies_path}")
+        state_path = get_storage_state_path()
+        context.storage_state(path=state_path)
+        print(f"  ✓ Storage state saved to {state_path}")
+        # Also save cookies separately for backward compat
+        try:
+            cookies = context.cookies()
+            cookies_path = get_cookies_path()
+            with open(cookies_path, 'w') as f:
+                json.dump(cookies, f, indent=2)
+        except Exception:
+            pass
         return True
     except Exception as e:
-        print(f"  Warning: Failed to save cookies: {e}")
-        return False
-
-
-def load_cookies(context):
-    """Load cookies from file into browser context."""
-    try:
-        cookies_path = get_cookies_path()
-        if not os.path.exists(cookies_path):
+        print(f"  Warning: Failed to save storage state: {e}")
+        # Fallback: save cookies only
+        try:
+            cookies = context.cookies()
+            cookies_path = get_cookies_path()
+            with open(cookies_path, 'w') as f:
+                json.dump(cookies, f, indent=2)
+            print(f"  ✓ Fallback: cookies saved to {cookies_path}")
+            return True
+        except Exception as e2:
+            print(f"  Warning: Failed to save cookies: {e2}")
             return False
 
-        with open(cookies_path, 'r') as f:
-            cookies = json.load(f)
 
-        context.add_cookies(cookies)
-        print(f"  ✓ Loaded {len(cookies)} cookies")
-        return True
-    except Exception as e:
-        print(f"  Warning: Failed to load cookies: {e}")
-        return False
+def load_storage_state_into_context(browser, base_context_options: dict):
+    """
+    Try to create a new browser context with saved storage state.
+    Returns (context, True) if loaded, or (context, False) if no state found.
+
+    Priority:
+      1. storage_state.json (cookies + localStorage)
+      2. cookies.json (legacy, cookies only)
+      3. Fresh context (no saved state)
+    """
+    state_path = get_storage_state_path()
+    cookies_path = get_cookies_path()
+
+    # Try full storage state first
+    if os.path.exists(state_path):
+        try:
+            context = browser.new_context(
+                storage_state=state_path,
+                **base_context_options,
+            )
+            print(f"  ✓ Loaded storage state from {state_path}")
+            return context, True
+        except Exception as e:
+            print(f"  ⚠ Failed to load storage state: {e}")
+
+    # Fallback: try legacy cookies
+    if os.path.exists(cookies_path):
+        try:
+            context = browser.new_context(**base_context_options)
+            with open(cookies_path, 'r') as f:
+                cookies = json.load(f)
+            context.add_cookies(cookies)
+            print(f"  ✓ Loaded {len(cookies)} cookies from {cookies_path}")
+            return context, True
+        except Exception as e:
+            print(f"  ⚠ Failed to load cookies: {e}")
+
+    # No saved state
+    context = browser.new_context(**base_context_options)
+    return context, False
 
 
 def wait_for_element(page, selector, timeout=10000):
@@ -344,14 +405,21 @@ def wait_for_cloudflare(page, label: str = "", max_wait: int = 30) -> bool:
 def solve_turnstile(page, max_attempts: int = 3) -> bool:
     """
     Attempt to find and click the Cloudflare Turnstile "Verify you are human"
-    checkbox. The checkbox lives inside an iframe from challenges.cloudflare.com.
+    checkbox.
 
-    Strategy:
-      1. Locate the Turnstile iframe on the page
-      2. Get its bounding box (position on screen)
-      3. Simulate human mouse movement toward the checkbox area
-      4. Click it via the *page* coordinate system (not inside the frame)
-      5. Wait and verify the checkbox state changed
+    KEY INSIGHT: Turnstile renders its iframe inside a **closed shadow DOM**:
+        <div>
+          <template shadowrootmode="closed">
+            <iframe src="https://challenges.cloudflare.com/..." />
+          </template>
+          <input type="hidden" name="cf-turnstile-response" />
+        </div>
+
+    Because the shadow root is CLOSED, normal DOM queries like
+    page.locator("iframe[src*='challenges.cloudflare.com']")
+    will NOT find it. However, Playwright's page.frames still lists
+    all frames regardless of shadow DOM. We use that + frame_element()
+    to get the bounding box and click it.
 
     Returns True if Turnstile appears solved, False otherwise.
     """
@@ -360,69 +428,82 @@ def solve_turnstile(page, max_attempts: int = 3) -> bool:
     for attempt in range(1, max_attempts + 1):
         print(f"  Attempt {attempt}/{max_attempts}")
 
-        # ── Step A: Find the Turnstile iframe element ────────────────
-        turnstile_iframe = None
-        for selector in [
-            "iframe[src*='challenges.cloudflare.com']",
-            "iframe[title*='Cloudflare']",
-            "iframe[title*='Widget']",
-            "iframe[src*='turnstile']",
-        ]:
-            loc = page.locator(selector).first
-            if loc.count() > 0:
-                turnstile_iframe = loc
-                print(f"    Found Turnstile iframe: {selector}")
-                break
+        # ── Step A: Find Turnstile frame via page.frames ─────────────
+        # (bypasses closed shadow DOM limitation)
+        turnstile_frame = None
+        turnstile_element = None
+        box = None
 
-        if turnstile_iframe is None:
-            # Maybe Turnstile rendered as a div container instead
+        print("    Scanning page.frames for Turnstile...")
+        all_frames = page.frames
+        print(f"    Page has {len(all_frames)} frame(s):")
+        for frame in all_frames:
+            url = frame.url or "(about:blank)"
+            print(f"      - {url[:120]}")
+            if "challenges.cloudflare.com" in url or "turnstile" in url:
+                turnstile_frame = frame
+                print(f"    ✓ Found Turnstile frame: {url[:120]}")
+
+        if turnstile_frame is not None:
+            # Get the iframe's element handle to find its position on page
+            try:
+                turnstile_element = turnstile_frame.frame_element()
+                box = turnstile_element.bounding_box()
+            except Exception as e:
+                print(f"    ⚠ Could not get frame element/bbox: {e}")
+
+        # Fallback: also try locator-based search (in case shadow DOM is open)
+        if box is None:
+            print("    Trying locator-based fallback...")
             for selector in [
+                "iframe[src*='challenges.cloudflare.com']",
+                "iframe[title*='Cloudflare']",
+                "iframe[title*='Widget containing']",
+                "iframe[src*='turnstile']",
+                "div.cf-turnstile iframe",
                 "div.cf-turnstile",
                 "div[class*='turnstile']",
-                "div[id*='turnstile']",
-                "div[id*='cf-']",
             ]:
-                loc = page.locator(selector).first
-                if loc.count() > 0:
-                    turnstile_iframe = loc
-                    print(f"    Found Turnstile container: {selector}")
-                    break
+                try:
+                    loc = page.locator(selector).first
+                    if loc.count() > 0:
+                        box = loc.bounding_box()
+                        if box:
+                            print(f"    ✓ Found via locator: {selector}")
+                            break
+                except Exception:
+                    continue
 
-        if turnstile_iframe is None:
-            print("    ⚠ Could not locate Turnstile widget")
-            # List all iframes for diagnostics
+        # Last resort: find the hidden input and estimate position
+        if box is None:
+            print("    Trying hidden input sibling method...")
             try:
-                all_iframes = page.locator("iframe")
-                count = all_iframes.count()
-                print(f"    Page has {count} iframe(s):")
-                for idx in range(min(count, 10)):
-                    frame_el = all_iframes.nth(idx)
-                    src = frame_el.get_attribute("src") or "(no src)"
-                    title = frame_el.get_attribute("title") or "(no title)"
-                    print(f"      [{idx}] title='{title}' src='{src[:120]}'")
+                hidden = page.locator(
+                    "input[name='cf-turnstile-response']"
+                ).first
+                if hidden.count() > 0:
+                    # The Turnstile widget is the parent div of this input.
+                    # Use JS to find the parent's bounding rect.
+                    parent_box = hidden.evaluate(
+                        """el => {
+                            const parent = el.parentElement;
+                            if (!parent) return null;
+                            const rect = parent.getBoundingClientRect();
+                            return {
+                                x: rect.x, y: rect.y,
+                                width: rect.width, height: rect.height
+                            };
+                        }"""
+                    )
+                    if parent_box and parent_box.get("width", 0) > 0:
+                        box = parent_box
+                        print(f"    ✓ Found via hidden input parent")
             except Exception as e:
-                print(f"    Could not enumerate iframes: {e}")
+                print(f"    Could not use hidden input method: {e}")
+
+        if box is None:
+            print("    ❌ Could not locate Turnstile widget at all")
             take_screenshot(page, f"turnstile_not_found_attempt{attempt}")
-
-            if attempt < max_attempts:
-                human_delay(2.0, 4.0)
-                continue
-            return False
-
-        # ── Step B: Get the bounding box of the iframe ───────────────
-        try:
-            box = turnstile_iframe.bounding_box()
-        except Exception as e:
-            print(f"    Could not get bounding box: {e}")
-            take_screenshot(page, f"turnstile_no_bbox_attempt{attempt}")
-            if attempt < max_attempts:
-                human_delay(2.0, 4.0)
-                continue
-            return False
-
-        if not box:
-            print("    ⚠ Turnstile widget has no bounding box (hidden?)")
-            take_screenshot(page, f"turnstile_hidden_attempt{attempt}")
             if attempt < max_attempts:
                 human_delay(2.0, 4.0)
                 continue
@@ -431,33 +512,30 @@ def solve_turnstile(page, max_attempts: int = 3) -> bool:
         print(f"    Turnstile bbox: x={box['x']:.0f} y={box['y']:.0f} "
               f"w={box['width']:.0f} h={box['height']:.0f}")
 
-        # ── Step C: Calculate checkbox click target ──────────────────
-        # The checkbox is typically on the left side of the Turnstile widget,
-        # roughly 25-35px from the left edge, vertically centered.
+        # ── Step B: Calculate checkbox click target ───────────────────
+        # Turnstile widget is 300x65. Checkbox is on the left, ~28px in.
         checkbox_x = int(box["x"] + 28 + random.randint(-3, 3))
         checkbox_y = int(box["y"] + box["height"] / 2 + random.randint(-3, 3))
 
         print(f"    Clicking checkbox at ({checkbox_x}, {checkbox_y})")
 
-        # ── Step D: Human-like approach to the checkbox ──────────────
-        # First, move mouse somewhere random on the page
+        # ── Step C: Human-like approach and click ─────────────────────
+        # Move mouse randomly first, then approach the checkbox
         human_mouse_move(page)
         human_delay(0.4, 1.0)
 
-        # Then move toward the checkbox with natural path
+        # Natural path toward checkbox
         human_mouse_move(page, checkbox_x, checkbox_y)
-        human_delay(0.2, 0.5)
+        human_delay(0.15, 0.4)
 
         # Click!
         page.mouse.click(checkbox_x, checkbox_y)
         print("    ✓ Clicked Turnstile checkbox")
         take_screenshot(page, f"turnstile_clicked_attempt{attempt}")
 
-        # ── Step E: Wait and verify ──────────────────────────────────
-        # After clicking, Turnstile runs its challenge (spinning, then ✓).
-        # We wait for the Sign In button to become enabled as the signal.
+        # ── Step D: Wait and verify ──────────────────────────────────
         print("    Waiting for Turnstile to verify...", end="", flush=True)
-        for wait_i in range(30):  # up to 15 seconds
+        for wait_i in range(40):  # up to 20 seconds
             time.sleep(0.5)
             print(".", end="", flush=True)
 
@@ -471,23 +549,38 @@ def solve_turnstile(page, max_attempts: int = 3) -> bool:
             except Exception:
                 pass
 
-            # Also check if the Turnstile iframe shows a checkmark
-            # (its size/content may change)
+            # Also check the hidden response field — if it has a long value,
+            # the challenge may have been completed
             try:
-                new_box = turnstile_iframe.bounding_box()
-                if new_box and new_box != box:
-                    # Widget resized — might be showing success
-                    pass
+                resp = page.locator(
+                    "input[name='cf-turnstile-response']"
+                ).first
+                if resp.count() > 0:
+                    val = resp.get_attribute("value") or ""
+                    if len(val) > 100:
+                        # Response token populated — challenge likely passed
+                        # Give it a moment for the button to enable
+                        human_delay(0.5, 1.0)
+                        try:
+                            sign_in = page.locator(
+                                "button:has-text('Sign In')"
+                            ).first
+                            if sign_in.count() > 0 and not sign_in.is_disabled():
+                                print(f"\n    ✅ Turnstile solved via token! "
+                                      f"(took ~{(wait_i+1)*0.5:.1f}s)")
+                                take_screenshot(page, "turnstile_solved")
+                                return True
+                        except Exception:
+                            pass
             except Exception:
                 pass
 
-        print("\n    ⚠ Turnstile did not resolve in 15s")
+        print("\n    ⚠ Turnstile did not resolve in 20s")
         take_screenshot(page, f"turnstile_timeout_attempt{attempt}")
 
         if attempt < max_attempts:
             print("    Retrying...")
             human_delay(2.0, 4.0)
-            # Move mouse away and back
             human_mouse_move(page)
             human_delay(1.0, 2.0)
 
@@ -502,11 +595,11 @@ def solve_turnstile(page, max_attempts: int = 3) -> bool:
 # ============================================================================
 
 def submit_solution(
-    username: str,
-    password: str,
-    problem_slug: str,
-    code: str,
-    lang: str,
+    username: str = "",
+    password: str = "",
+    problem_slug: str = "",
+    code: str = "",
+    lang: str = "cpp",
     headless: bool = True,
 ) -> bool:
     """
@@ -542,7 +635,7 @@ def submit_solution(
         vw = random.choice([1920, 1900, 1912, 1936])
         vh = random.choice([1080, 1060, 1072, 1048])
 
-        context = browser.new_context(
+        base_context_options = dict(
             viewport={'width': vw, 'height': vh},
             screen={'width': 1920, 'height': 1080},
             user_agent=(
@@ -565,6 +658,11 @@ def submit_solution(
             },
         )
 
+        # Load saved storage state (cookies + localStorage) if available
+        context, state_loaded = load_storage_state_into_context(
+            browser, base_context_options
+        )
+
         page = context.new_page()
 
         # Apply stealth scripts before any navigation
@@ -576,34 +674,50 @@ def submit_solution(
         try:
             # ── Step 1: Check for saved session ──────────────────────────
             print("[1/5] Checking for saved session...")
-            cookies_loaded = load_cookies(context)
 
             is_logged_in = False
-            if cookies_loaded:
+            if state_loaded:
                 print("  Verifying saved session...")
                 page.goto("https://leetcode.com/", wait_until="domcontentloaded")
                 human_delay(1.5, 3.0)
+
+                # Handle Cloudflare on initial load
+                if not wait_for_cloudflare(page, "session_check", max_wait=15):
+                    print("  ⚠ Cloudflare blocked session check")
 
                 try:
                     page.goto(
                         "https://leetcode.com/profile/",
                         wait_until="domcontentloaded",
-                        timeout=10000,
+                        timeout=15000,
                     )
                     human_delay(1.0, 2.0)
+                    wait_for_cloudflare(page, "profile_check", max_wait=10)
+                    human_delay(0.5, 1.0)
+
                     if page.url.startswith("https://leetcode.com/u/"):
-                        print("  ✅ Logged in with saved cookies!")
+                        print("  ✅ Logged in with saved session!")
                         is_logged_in = True
                         take_screenshot(page, "01_session_restored")
+                        # Re-save to refresh cookie expiry
+                        save_storage_state(context)
                     else:
-                        print("  ⚠ Saved cookies expired, falling back to login")
-                except Exception:
-                    print("  ⚠ Saved cookies expired, falling back to login")
+                        print(f"  ⚠ Session expired (redirected to {page.url})")
+                        print("  Falling back to login...")
+                except Exception as e:
+                    print(f"  ⚠ Session check failed: {e}")
+                    print("  Falling back to login...")
             else:
                 print("  No saved session found, will attempt login")
 
             # ── Navigate to homepage first (warm up) ─────────────────────
             if not is_logged_in:
+                # Check if we can even attempt login
+                if not username or not password:
+                    print("  ❌ No valid session and no credentials provided")
+                    print("  💡 Run: python scripts/submit_to_leetcode.py --save-session")
+                    return False
+
                 page.goto("https://leetcode.com/", wait_until="domcontentloaded")
                 human_delay(2.0, 4.0)
 
@@ -816,7 +930,7 @@ def submit_solution(
                     return False
 
                 print("  ✅ Login successful")
-                save_cookies(context)
+                save_storage_state(context)
 
             # ── Step 3: Navigate to problem ──────────────────────────────
             print("[3/5] Navigate to problem...")
@@ -1042,9 +1156,17 @@ def main():
         help="Show browser window (for debugging)",
     )
     parser.add_argument(
+        "--save-session",
+        action="store_true",
+        help="Open browser to login manually and save full session "
+             "(cookies + localStorage). Recommended for CI setup.",
+    )
+    # Legacy alias
+    parser.add_argument(
         "--save-cookies-only",
         action="store_true",
-        help="Only login and save cookies, then exit (for initial setup)",
+        dest="save_session",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--screenshot-dir",
@@ -1059,11 +1181,13 @@ def main():
     SCREENSHOT_DIR = args.screenshot_dir
     ensure_screenshot_dir()
 
-    # Special mode: Only save cookies
-    if args.save_cookies_only:
-        print("=== Cookie Setup Mode ===")
+    # Special mode: Save session (cookies + localStorage + IndexedDB)
+    if args.save_session:
+        print("=== Session Setup Mode ===")
         print("This will open a browser for you to login manually.")
-        print("After logging in successfully, press Ctrl+C to save cookies.\n")
+        print("After logging in, press Ctrl+C to save the full session.")
+        print("(Saves cookies + localStorage — much more reliable than")
+        print(" cookies alone!)\n")
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=False)
@@ -1083,53 +1207,76 @@ def main():
             print("\n📌 Instructions:")
             print("  1. Login manually in the browser window")
             print("  2. Solve Cloudflare Turnstile CAPTCHA if prompted")
-            print("  3. Wait until you see LeetCode homepage")
-            print("  4. Press Ctrl+C in this terminal to save cookies")
+            print("  3. Wait until you see LeetCode homepage (logged in)")
+            print("  4. Press Ctrl+C in this terminal to save session")
             print("\nWaiting for you to login...")
 
             try:
                 while True:
                     time.sleep(1)
             except KeyboardInterrupt:
-                print("\n\nSaving cookies...")
+                print("\n\nSaving session...")
 
             try:
+                # Save full storage state (cookies + localStorage)
+                state_path = get_storage_state_path()
+                context.storage_state(path=state_path)
+                print(f"✅ Full session saved to {state_path}")
+
+                # Also save cookies separately for reference
                 cookies = context.cookies()
-                if cookies:
-                    cookies_path = get_cookies_path()
-                    with open(cookies_path, "w") as f:
-                        json.dump(cookies, f, indent=2)
-                    print(f"✅ {len(cookies)} cookies saved to {cookies_path}")
-                    print(
-                        "\n💡 You can now run submissions without "
-                        "needing to login each time!"
-                    )
-                    sys.exit(0)
-                else:
-                    print("⚠ No cookies found. Did you login?")
-                    sys.exit(1)
+                cookies_path = get_cookies_path()
+                with open(cookies_path, "w") as f:
+                    json.dump(cookies, f, indent=2)
+                print(f"   ({len(cookies)} cookies also saved to {cookies_path})")
+
+                print(
+                    "\n💡 You can now run submissions without "
+                    "needing to login each time!"
+                )
+                print(
+                    "\n🔒 For CI: Base64-encode the state file and store "
+                    "as a GitHub Secret:"
+                )
+                print(f"   base64 -w0 {state_path} | "
+                      "pbcopy  # or xclip")
+                print("   Then in CI, decode it back before running.")
+                sys.exit(0)
             except Exception as e:
-                print(f"❌ Error saving cookies: {e}")
+                print(f"❌ Error saving session: {e}")
                 sys.exit(1)
             finally:
                 browser.close()
 
     # Normal mode: Submit solution
-    if not args.username or not args.password:
-        print(
-            "Error: Please provide LeetCode username and password",
-            file=sys.stderr,
-        )
-        print("  Method 1: Pass --username and --password", file=sys.stderr)
-        print(
-            "  Method 2: Set LEETCODE_USERNAME and LEETCODE_PASSWORD env vars",
-            file=sys.stderr,
-        )
-        print(
-            "  Method 3 (RECOMMENDED): Use --save-cookies-only to login once",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    # Username/password are only required if no saved session exists
+    if not has_saved_state():
+        if not args.username or not args.password:
+            print(
+                "Error: No saved session found and no credentials provided.",
+                file=sys.stderr,
+            )
+            print(
+                "\nOption A (RECOMMENDED): Save session first:",
+                file=sys.stderr,
+            )
+            print(
+                "  python scripts/submit_to_leetcode.py --save-session",
+                file=sys.stderr,
+            )
+            print(
+                "\nOption B: Provide credentials:",
+                file=sys.stderr,
+            )
+            print(
+                "  --username USER --password PASS  or",
+                file=sys.stderr,
+            )
+            print(
+                "  LEETCODE_USERNAME / LEETCODE_PASSWORD env vars",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     # Read code file
     code_path = Path(args.file)
@@ -1139,10 +1286,10 @@ def main():
 
     code = code_path.read_text(encoding="utf-8")
 
-    # Submit
+    # Submit (credentials may be empty if relying on saved session)
     success = submit_solution(
-        username=args.username,
-        password=args.password,
+        username=args.username or "",
+        password=args.password or "",
         problem_slug=args.problem_slug,
         code=code,
         lang=args.lang,

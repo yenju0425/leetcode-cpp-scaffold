@@ -6,10 +6,20 @@ set -e
 LEETCODE_USERNAME="${LEETCODE_USERNAME}"
 LEETCODE_PASSWORD="${LEETCODE_PASSWORD}"
 
-# Verify credentials
-if [ -z "$LEETCODE_USERNAME" ] || [ -z "$LEETCODE_PASSWORD" ]; then
-  echo "❌ LEETCODE_USERNAME or LEETCODE_PASSWORD not set!"
-  exit 1
+# Check if we have saved session (storage state or cookies)
+HAS_SESSION=false
+if [ -f "$HOME/.cache/leetcode-submit/storage_state.json" ] || [ -f "$HOME/.cache/leetcode-submit/cookies.json" ]; then
+  HAS_SESSION=true
+  echo "✅ Saved session found, credentials are optional"
+fi
+
+# Verify credentials only if no saved session
+if [ "$HAS_SESSION" = false ]; then
+  if [ -z "$LEETCODE_USERNAME" ] || [ -z "$LEETCODE_PASSWORD" ]; then
+    echo "❌ No saved session and no LEETCODE_USERNAME/LEETCODE_PASSWORD set!"
+    echo "   Run: python scripts/submit_to_leetcode.py --save-session"
+    exit 1
+  fi
 fi
 
 submission_count=0
@@ -47,7 +57,13 @@ for file in $(cat /tmp/changed_files.txt | grep 'solution.h' || true); do
     python scripts/extract_solution.py "$solution_file" --ns "$ns" --output "$tmp_file" || { echo "❌ Extraction failed"; exit 1; }
     [ ! -f "$tmp_file" ] && { echo "❌ File not created"; exit 1; }
     
-    if python scripts/submit_to_leetcode.py --problem-slug "$problem_slug" --file "$tmp_file" --lang "cpp" --screenshot-dir "${SCREENSHOT_DIR:-/tmp/leetcode-screenshots}"; then
+    # Build submit command (credentials are optional if session exists)
+    SUBMIT_CMD="python scripts/submit_to_leetcode.py --problem-slug \"$problem_slug\" --file \"$tmp_file\" --lang \"cpp\" --screenshot-dir \"${SCREENSHOT_DIR:-/tmp/leetcode-screenshots}\""
+    if [ -n "$LEETCODE_USERNAME" ] && [ -n "$LEETCODE_PASSWORD" ]; then
+      SUBMIT_CMD="$SUBMIT_CMD --username \"$LEETCODE_USERNAME\" --password \"$LEETCODE_PASSWORD\""
+    fi
+
+    if eval $SUBMIT_CMD; then
       echo "✅ ACCEPTED"
       success_count=$((success_count + 1))
     else
