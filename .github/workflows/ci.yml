@@ -90,8 +90,8 @@ jobs:
 
       - name: Submit solutions to LeetCode
         env:
-          LEETCODE_USERNAME: ${{ secrets.LEETCODE_USERNAME }}
-          LEETCODE_PASSWORD: ${{ secrets.LEETCODE_PASSWORD }}
+          GITHUB_USERNAME: ${{ secrets.GITHUB_USERNAME }}
+          GITHUB_PASSWORD: ${{ secrets.GITHUB_PASSWORD }}
           SCREENSHOT_DIR: /tmp/leetcode-screenshots
         run: bash scripts/submit_to_leetcode.sh
 
