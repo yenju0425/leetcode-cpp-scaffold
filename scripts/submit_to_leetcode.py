@@ -495,11 +495,11 @@ Examples:
 
     # GitHub OAuth credentials
     parser.add_argument("--gh-username",
-                        default=os.getenv("GITHUB_USERNAME", ""),
-                        help="GitHub username (or GITHUB_USERNAME env)")
+                        default=os.getenv("GH_USERNAME", ""),
+                        help="GitHub username (or GH_USERNAME env)")
     parser.add_argument("--gh-password",
-                        default=os.getenv("GITHUB_PASSWORD", ""),
-                        help="GitHub password (or GITHUB_PASSWORD env)")
+                        default=os.getenv("GH_PASSWORD", ""),
+                        help="GitHub password (or GH_PASSWORD env)")
 
     args = parser.parse_args()
 
@@ -528,7 +528,7 @@ Examples:
               file=sys.stderr)
         print("Option B: Provide GitHub credentials:", file=sys.stderr)
         print("  --gh-username USER --gh-password PASS", file=sys.stderr)
-        print("  or set GITHUB_USERNAME / GITHUB_PASSWORD env vars",
+        print("  or set GH_USERNAME / GH_PASSWORD env vars",
               file=sys.stderr)
         sys.exit(1)
 

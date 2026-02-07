@@ -2,7 +2,7 @@
 # Submit solutions to LeetCode
 #
 # Required env vars (at least one login method):
-#   GITHUB_USERNAME / GITHUB_PASSWORD  — GitHub OAuth login
+#   GH_USERNAME / GH_PASSWORD  — GitHub OAuth login
 #   Or a saved session at ~/.cache/leetcode-submit/storage_state.json
 
 set -e
@@ -15,7 +15,7 @@ if [ -f "$HOME/.cache/leetcode-submit/storage_state.json" ]; then
 fi
 
 HAS_GITHUB=false
-if [ -n "$GITHUB_USERNAME" ] && [ -n "$GITHUB_PASSWORD" ]; then
+if [ -n "$GH_USERNAME" ] && [ -n "$GH_PASSWORD" ]; then
   HAS_GITHUB=true
   echo "✅ GitHub credentials provided"
 fi
@@ -23,7 +23,7 @@ fi
 if [ "$HAS_SESSION" = false ] && [ "$HAS_GITHUB" = false ]; then
   echo "❌ No login method available!"
   echo "   Option A: Run  python scripts/submit_to_leetcode.py --save-session"
-  echo "   Option B: Set GITHUB_USERNAME and GITHUB_PASSWORD"
+  echo "   Option B: Set GH_USERNAME and GH_PASSWORD"
   exit 1
 fi
 
