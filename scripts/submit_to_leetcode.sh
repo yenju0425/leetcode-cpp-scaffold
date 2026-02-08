@@ -66,6 +66,7 @@ for file in $(cat /tmp/changed_files.txt | grep 'solution.h' || true); do
          --problem-slug "$problem_slug" \
          --file "$tmp_file" \
          --lang "cpp" \
+        #  --show-browser \
          --screenshot-dir "${SCREENSHOT_DIR:-/tmp/leetcode-screenshots}"; then
       echo "✅ ACCEPTED"
       success_count=$((success_count + 1))

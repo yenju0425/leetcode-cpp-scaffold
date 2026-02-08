@@ -25,10 +25,11 @@ Automatically submit solutions via browser automation.
     3. Add output as GitHub Secret: LEETCODE_STORAGE_STATE
     4. CI decodes it back before running this script
 
-=== Login Strategy (configurable via LOGIN_METHODS) ===
+=== Login Strategy ===
 
-    Default order: GitHub OAuth -> saved session
-    Change LOGIN_METHODS list below to reorder or add methods.
+    1. Restore saved session and verify it works
+    2. If no session or session expired, login via GitHub OAuth
+    3. On success, save session for next time
 """
 
 import argparse
@@ -48,12 +49,6 @@ STORAGE_STATE_DIR = os.path.expanduser("~/.cache/leetcode-submit")
 STORAGE_STATE_PATH = os.path.join(STORAGE_STATE_DIR, "storage_state.json")
 SCREENSHOT_DIR = os.environ.get("SCREENSHOT_DIR", "/tmp/leetcode-screenshots")
 
-# Login methods in priority order.
-# Swap or remove entries to change login behavior.
-LOGIN_METHODS = ["github", "session"]
-
-CLOUDFLARE_MAX_WAIT = 30  # seconds to wait for Cloudflare to auto-resolve
-
 
 # ============================================================================
 # Session Helpers
@@ -63,16 +58,11 @@ def has_saved_session() -> bool:
     return os.path.exists(STORAGE_STATE_PATH)
 
 
-def save_session(context: BrowserContext) -> bool:
+def save_session(context: BrowserContext) -> None:
     """Save full browser storage state (cookies + localStorage)."""
-    try:
-        os.makedirs(STORAGE_STATE_DIR, exist_ok=True)
-        context.storage_state(path=STORAGE_STATE_PATH)
-        print(f"  [ok] Session saved to {STORAGE_STATE_PATH}")
-        return True
-    except Exception as e:
-        print(f"  [err] Failed to save session: {e}")
-        return False
+    os.makedirs(STORAGE_STATE_DIR, exist_ok=True)
+    context.storage_state(path=STORAGE_STATE_PATH)
+    print(f"  [ok] Session saved to {STORAGE_STATE_PATH}")
 
 
 # ============================================================================
@@ -81,14 +71,15 @@ def save_session(context: BrowserContext) -> bool:
 
 _screenshot_counter = 0
 
+
 def screenshot(page: Page, name: str) -> None:
     """Take a debug screenshot with sequential numbering."""
     global _screenshot_counter
     try:
         os.makedirs(SCREENSHOT_DIR, exist_ok=True)
         _screenshot_counter += 1
-        path = os.path.join(SCREENSHOT_DIR,
-                            f"{_screenshot_counter:03d}_{name}.png")
+        path = os.path.join(
+            SCREENSHOT_DIR, f"{_screenshot_counter:03d}_{name}.png")
         page.screenshot(path=path, full_page=True)
         print(f"  [screenshot] {path}")
     except Exception:
@@ -96,70 +87,19 @@ def screenshot(page: Page, name: str) -> None:
 
 
 # ============================================================================
-# Cloudflare Detection & Wait
-# ============================================================================
-
-def is_cloudflare_challenge(page: Page) -> bool:
-    """Detect if the current page is a Cloudflare challenge."""
-    try:
-        title = page.title().lower()
-        body = page.locator("body").inner_text()
-    except Exception:
-        return False
-
-    indicators = [
-        "just a moment" in title,
-        "verify you are human" in body.lower(),
-        "cloudflare" in body.lower() and "review the security" in body.lower(),
-    ]
-    return any(indicators)
-
-
-def wait_for_cloudflare(page: Page, label: str = "") -> bool:
-    """
-    If Cloudflare challenge is detected, wait for it to auto-resolve.
-    Returns True if page is clear (no Cloudflare), False if still blocked.
-    """
-    if not is_cloudflare_challenge(page):
-        return True
-
-    prefix = f"  [{label}] " if label else "  "
-    print(f"{prefix}Cloudflare challenge detected, waiting", end="", flush=True)
-    screenshot(page, f"cloudflare_{label}_detected")
-
-    start = time.time()
-    while time.time() - start < CLOUDFLARE_MAX_WAIT:
-        time.sleep(2)
-        print(".", end="", flush=True)
-        if not is_cloudflare_challenge(page):
-            print(f"\n{prefix}Cloudflare resolved! ({time.time()-start:.0f}s)")
-            screenshot(page, f"cloudflare_{label}_resolved")
-            return True
-
-    print(f"\n{prefix}Cloudflare did NOT resolve after {CLOUDFLARE_MAX_WAIT}s")
-    screenshot(page, f"cloudflare_{label}_timeout")
-    return False
-
-
-# ============================================================================
-# Login Strategies
+# Login Helpers
 # ============================================================================
 
 def check_logged_in(page: Page) -> bool:
-    """Check if the current browser session is logged in to LeetCode."""
+    """Navigate to profile and check if the session is authenticated."""
     try:
         page.goto("https://leetcode.com/profile/",
-                   wait_until="domcontentloaded", timeout=15000)
-        time.sleep(2)
+                   wait_until="domcontentloaded", timeout=15_000)
+        time.sleep(2)  # Wait for redirect
         screenshot(page, "check_login")
 
-        # Cloudflare might block even profile check
-        if not wait_for_cloudflare(page, "profile"):
-            return False
-
-        time.sleep(1)
         url = page.url
-        logged_in = url.startswith("https://leetcode.com/u/")
+        logged_in = url.startswith("https://leetcode.com/settings/profile")
         print(f"  Login check: URL={url}, logged_in={logged_in}")
         return logged_in
     except Exception as e:
@@ -167,272 +107,157 @@ def check_logged_in(page: Page) -> bool:
         return False
 
 
-def login_via_session(page: Page, context: BrowserContext, **_) -> bool:
-    """Try to login using saved session (cookies + localStorage)."""
-    if not has_saved_session():
-        print("  No saved session found")
-        return False
-
-    print("  Verifying saved session...")
-    if check_logged_in(page):
-        print("  [ok] Logged in via saved session")
-        save_session(context)  # Refresh expiry
-        return True
-
-    print("  [warn] Session expired or blocked by Cloudflare")
-    screenshot(page, "session_failed")
-    return False
-
-
 def login_via_github(page: Page, context: BrowserContext,
-                     gh_username: str = "", gh_password: str = "",
-                     **_) -> bool:
+                     gh_username: str, gh_password: str) -> bool:
     """
     Login to LeetCode via GitHub OAuth.
 
-    Strategy:
-      1. Navigate to LeetCode login page
-      2. Wait for Cloudflare to pass (if any)
-      3. Click the GitHub icon on the login page
-      4. Fill GitHub login form (standard HTML form, no Cloudflare)
-      5. Handle OAuth authorization if needed
-      6. Verify login on LeetCode
-
-    Requires gh_username and gh_password (CLI args or env vars).
+    Flow: LeetCode login page -> click GitHub -> fill GitHub form
+          -> OAuth authorize -> redirect back -> verify login.
     """
-    if not gh_username or not gh_password:
-        print("  No GitHub credentials provided")
-        return False
-
-    # Step 1: Navigate to LeetCode login page
+    # Step 1: Open LeetCode login page
     print("  Step 1: Opening LeetCode login page...")
     page.goto("https://leetcode.com/accounts/login/",
-              wait_until="domcontentloaded", timeout=30000)
-    time.sleep(3)
-    screenshot(page, "github_step1_login_page")
+              wait_until="domcontentloaded", timeout=30_000)
+    time.sleep(2)  # Wait for page to render
+    screenshot(page, "github_login_page")
 
-    # Step 2: Wait for Cloudflare
-    print("  Step 2: Checking for Cloudflare...")
-    if not wait_for_cloudflare(page, "login_page"):
-        print("  [err] Cannot get past Cloudflare on login page")
+    # Step 2: Click the GitHub login link
+    print("  Step 2: Clicking GitHub login button...")
+    github_link = page.locator("a[href*='/accounts/github/login']").first
+    if not github_link.is_visible():
+        print("  [err] Could not find GitHub login link")
+        screenshot(page, "github_no_button")
         return False
 
-    time.sleep(2)
-    screenshot(page, "github_step2_after_cloudflare")
-    print(f"  Page title: {page.title()}")
-    print(f"  URL: {page.url}")
-
-    # Step 3: Click the GitHub login button/link
-    print("  Step 3: Looking for GitHub login button...")
-
-    # The GitHub link is: <a href="https://leetcode.com/accounts/github/login/..."
-    # with data-icon="github-c"
-    github_link = page.locator(
-        "a[href*='/accounts/github/login']").first
-
-    if not github_link.is_visible():
-        # Fallback: try by data-icon attribute
-        github_link = page.locator("a[data-icon='github-c']").first
-
-    if not github_link.is_visible():
-        # Fallback: find by SVG path content (GitHub icon)
-        github_link = page.locator(
-            "a:has(svg path[d*='6.838 9.488'])").first
-
-    screenshot(page, "github_step3_before_click")
-
-    if not github_link.is_visible():
-        print("  [err] Could not find GitHub login link!")
-        print(f"  Page text excerpt: {page.locator('body').inner_text()[:500]}")
-        screenshot(page, "github_step3_no_button")
-        return False
-
-    print("  [ok] Found GitHub link, clicking...")
     github_link.click()
+    page.wait_for_load_state("domcontentloaded", timeout=30_000)
+    time.sleep(3)
+    screenshot(page, "github_after_click")
+    print(f"  Redirected to: {page.url}")
 
-    # Wait for navigation to GitHub
-    time.sleep(5)
-    screenshot(page, "github_step4_after_click")
-    current_url = page.url
-    print(f"  After click URL: {current_url}")
-
-    # Case A: Already authorized — redirected straight back to LeetCode
-    if "leetcode.com" in current_url and "/accounts/login" not in current_url:
-        print("  Seems like already authorized, checking login...")
-        if not wait_for_cloudflare(page, "after_oauth"):
-            pass  # try checking login anyway
-        time.sleep(2)
+    # Already authorized - redirected straight back to LeetCode
+    if (page.url.startswith("https://leetcode.com")
+            and "/accounts/login" not in page.url):
+        print("  Already authorized via GitHub, verifying...")
         if check_logged_in(page):
-            print("  [ok] GitHub OAuth: already authorized!")
             save_session(context)
             return True
 
-    # Case B: Cloudflare blocks the redirect
-    if is_cloudflare_challenge(page):
-        print("  Cloudflare appeared after clicking GitHub link...")
-        if not wait_for_cloudflare(page, "github_redirect"):
-            print("  [err] Cloudflare blocked GitHub redirect")
-            return False
-        time.sleep(3)
-        screenshot(page, "github_step4b_cloudflare_passed")
-        current_url = page.url
-
-    # Case C: We're on GitHub
-    if "github.com" not in current_url:
-        print(f"  [warn] Not on GitHub. URL: {current_url}")
+    # Not on GitHub - something unexpected happened
+    if not page.url.startswith("https://github.com"):
+        print(f"  [err] Unexpected URL: {page.url}")
         screenshot(page, "github_unexpected_url")
-        # One more try: maybe we need to wait longer
-        time.sleep(5)
-        current_url = page.url
-        if "github.com" not in current_url:
-            print(f"  [err] Still not on GitHub. URL: {current_url}")
-            return False
+        return False
 
-    print(f"  [ok] On GitHub: {page.title()}")
-    screenshot(page, "github_step5_on_github")
-
-    # Check if GitHub asks for OAuth authorization (already logged in to GitHub)
+    # Check if GitHub shows the OAuth authorize button (already logged in to GH)
     authorize_btn = page.locator("button[name='authorize']").first
     if authorize_btn.is_visible():
         print("  Already logged in to GitHub, authorizing LeetCode...")
-        screenshot(page, "github_authorize_prompt")
         authorize_btn.click()
-        time.sleep(5)
-        screenshot(page, "github_after_authorize")
-        if not wait_for_cloudflare(page, "after_authorize"):
-            pass
+        page.wait_for_load_state("domcontentloaded", timeout=30_000)
+        time.sleep(3)
         if check_logged_in(page):
-            print("  [ok] Logged in via GitHub OAuth (authorized)")
             save_session(context)
             return True
+        return False
 
-    # Step 4: Fill GitHub login form
-    print("  Step 4: Filling GitHub login form...")
-
-    # Use exact selectors from the actual GitHub HTML
+    # Step 3: Fill GitHub login form
+    print("  Step 3: Filling GitHub login form...")
     login_field = page.locator("#login_field")
     password_field = page.locator("#password")
 
-    if not login_field.is_visible():
-        login_field = page.locator("input[name='login']").first
-    if not password_field.is_visible():
-        password_field = page.locator("input[name='password']").first
-
     if not login_field.is_visible() or not password_field.is_visible():
-        print("  [err] Could not find GitHub login fields")
-        print(f"  Page title: {page.title()}")
-        print(f"  URL: {page.url}")
+        print("  [err] GitHub login fields not found")
         screenshot(page, "github_no_fields")
         return False
 
-    print(f"  Filling credentials for: {gh_username}")
     login_field.fill(gh_username)
-    time.sleep(0.5)
     password_field.fill(gh_password)
-    time.sleep(0.5)
-    screenshot(page, "github_step6_credentials_filled")
+    screenshot(page, "github_credentials_filled")
 
-    # Step 5: Click Sign In
-    print("  Step 5: Clicking Sign In...")
-    sign_in_btn = page.locator(
-        "input[type='submit'].js-sign-in-button").first
-
-    if not sign_in_btn.is_visible():
-        sign_in_btn = page.locator(
-            "input[type='submit'][value='Sign in']").first
-
+    # Step 4: Click Sign In
+    print("  Step 4: Signing in...")
+    sign_in_btn = page.locator("input[type='submit'][value='Sign in']").first
     if not sign_in_btn.is_visible():
         sign_in_btn = page.locator("input[type='submit']").first
 
     if not sign_in_btn.is_visible():
-        print("  [err] Could not find GitHub Sign In button")
+        print("  [err] GitHub Sign In button not found")
         screenshot(page, "github_no_signin_btn")
         return False
 
     sign_in_btn.click()
-    print("  [ok] Sign In clicked, waiting...")
-    time.sleep(5)
-    screenshot(page, "github_step7_after_signin")
+    page.wait_for_load_state("domcontentloaded", timeout=30_000)
+    time.sleep(3)
+    screenshot(page, "github_after_signin")
+    print(f"  Post-login URL: {page.url}")
 
-    current_url = page.url
-    print(f"  Post-login URL: {current_url}")
-
-    # Handle 2FA
-    if "two-factor" in current_url or "sessions/two-factor" in current_url:
-        print("  [warn] GitHub 2FA is required!")
-        print("  Hint: use --save-session to login manually instead")
-        screenshot(page, "github_2fa_required")
+    # Handle 2FA / device verification
+    if "two-factor" in page.url or "sessions/two-factor" in page.url:
+        print("  [err] GitHub 2FA required - use --save-session instead")
+        screenshot(page, "github_2fa")
         return False
 
-    # Handle device verification
-    if "sessions/verified-device" in current_url or "device-verification" in current_url.lower():
-        print("  [warn] GitHub device verification required!")
-        print("  Hint: use --save-session to login manually instead")
+    if "verified-device" in page.url or "device-verification" in page.url.lower():
+        print("  [err] GitHub device verification required - use --save-session instead")
         screenshot(page, "github_device_verification")
         return False
 
-    # Check for login errors on GitHub
+    # Check for login errors
     error_msg = page.locator(".js-flash-alert, .flash-error").first
     if error_msg.is_visible():
         print(f"  [err] GitHub login error: {error_msg.inner_text()}")
         screenshot(page, "github_login_error")
         return False
 
-    # Step 6: Handle OAuth authorization page
+    # Step 5: Handle OAuth authorization page (if shown)
     if "authorize" in page.url.lower() or "oauth" in page.url.lower():
-        print("  Step 6: Authorizing LeetCode OAuth app...")
-        screenshot(page, "github_oauth_authorize")
+        print("  Step 5: Authorizing LeetCode OAuth app...")
         auth_btn = page.locator("button[name='authorize']").first
         if auth_btn.is_visible():
             auth_btn.click()
-            print("  [ok] Authorization clicked")
-            time.sleep(5)
-            screenshot(page, "github_after_oauth_authorize")
+            page.wait_for_load_state("domcontentloaded", timeout=30_000)
+            time.sleep(3)
+            screenshot(page, "github_after_authorize")
 
-    # Step 7: Should be redirected back to LeetCode
-    time.sleep(3)
-    current_url = page.url
-    print(f"  Final URL: {current_url}")
-    screenshot(page, "github_step8_final")
-
-    # Wait for Cloudflare on LeetCode callback
-    if is_cloudflare_challenge(page):
-        print("  Cloudflare on callback, waiting...")
-        if not wait_for_cloudflare(page, "callback"):
-            print("  [warn] Cloudflare on callback, trying login check anyway...")
-
-    # Verify login
+    # Step 6: Verify login on LeetCode
     time.sleep(2)
     if check_logged_in(page):
         print("  [ok] Logged in via GitHub OAuth!")
         save_session(context)
         return True
 
-    print(f"  [err] GitHub login did not result in LeetCode login")
+    print("  [err] GitHub OAuth did not result in LeetCode login")
     print(f"  Final URL: {page.url}")
-    screenshot(page, "github_login_failed_final")
+    screenshot(page, "github_login_failed")
     return False
 
 
-# Registry: method name -> function
-LOGIN_REGISTRY = {
-    "session": login_via_session,
-    "github": login_via_github,
-}
+def ensure_logged_in(page: Page, context: BrowserContext,
+                     gh_username: str = "", gh_password: str = "") -> bool:
+    """
+    Ensure we are logged in to LeetCode.
 
-
-def attempt_login(page: Page, context: BrowserContext, **kwargs) -> bool:
-    """Try each login method in LOGIN_METHODS order."""
-    for method in LOGIN_METHODS:
-        handler = LOGIN_REGISTRY.get(method)
-        if handler is None:
-            print(f"  [warn] Unknown login method: {method}")
-            continue
-        print(f"\n[Login] Trying: {method}")
-        if handler(page, context, **kwargs):
+    Strategy:
+      1. If a saved session exists, restore it and verify - skip GitHub if OK.
+      2. Otherwise (or if session expired), try GitHub OAuth.
+    """
+    # Try saved session first (it should be valid; we only save on success)
+    if has_saved_session():
+        print("  Checking saved session...")
+        if check_logged_in(page):
+            print("  [ok] Saved session is valid")
             return True
-        print(f"[Login] {method} failed, trying next...\n")
-    return False
+        print("  [warn] Saved session expired, falling back to GitHub OAuth...")
+
+    # GitHub OAuth
+    if not gh_username or not gh_password:
+        print("  [err] No GitHub credentials provided and no valid session")
+        return False
+
+    print("  Logging in via GitHub OAuth...")
+    return login_via_github(page, context, gh_username, gh_password)
 
 
 # ============================================================================
@@ -444,14 +269,16 @@ def submit_solution(
     code: str,
     lang: str = "cpp",
     headless: bool = True,
-    **login_kwargs,
+    slow_mo: int = 0,
+    gh_username: str = "",
+    gh_password: str = "",
 ) -> bool:
     """
     Submit a solution to LeetCode.
 
-    1. Login (via configured methods)
+    1. Login (saved session -> GitHub OAuth)
     2. Navigate to problem
-    3. Enter code
+    3. Paste code via clipboard
     4. Submit and wait for verdict
 
     Returns True if Accepted.
@@ -459,11 +286,19 @@ def submit_solution(
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=headless,
+            slow_mo=slow_mo,
             args=["--no-sandbox", "--disable-dev-shm-usage"],
         )
 
-        # Load saved session into context if available
-        context_opts = {"viewport": {"width": 1920, "height": 1080}}
+        context_opts = {
+            "viewport": {"width": 1920, "height": 1080},
+            "user_agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            ),
+        }
+
+        # Restore saved session into browser context
         if has_saved_session():
             try:
                 context = browser.new_context(
@@ -473,87 +308,70 @@ def submit_solution(
         else:
             context = browser.new_context(**context_opts)
 
+        # Grant clipboard permissions for code pasting
+        context.grant_permissions(["clipboard-read", "clipboard-write"])
         page = context.new_page()
 
         try:
             # -- Login -------------------------------------------------
             print("[1/4] Logging in...")
-            if not attempt_login(page, context, **login_kwargs):
-                print("[FAIL] All login methods failed")
+            if not ensure_logged_in(page, context,
+                                    gh_username=gh_username,
+                                    gh_password=gh_password):
+                print("[FAIL] Login failed")
                 print("Hint: Run  python scripts/submit_to_leetcode.py --save-session")
-                screenshot(page, "all_login_failed")
+                screenshot(page, "login_failed")
                 return False
 
             # -- Navigate to problem -----------------------------------
             print(f"\n[2/4] Opening problem: {problem_slug}")
             problem_url = f"https://leetcode.com/problems/{problem_slug}/"
-            page.goto(problem_url, wait_until="domcontentloaded")
-            time.sleep(3)
+            page.goto(problem_url, wait_until="domcontentloaded", timeout=30_000)
+            time.sleep(2)  # Wait for page to render
             screenshot(page, "problem_page_loaded")
 
-            # Cloudflare might block problem page too
-            if not wait_for_cloudflare(page, "problem_page"):
-                print("  [warn] Cloudflare on problem page")
-                screenshot(page, "problem_cloudflare")
-
-            time.sleep(2)
-            print(f"  Page: {page.title()}")
-            print(f"  URL:  {page.url}")
-
-            if "404" in page.title() or problem_slug not in page.url:
-                print(f"  [err] Problem '{problem_slug}' not found")
+            if problem_slug not in page.url:
+                print(f"  [err] Problem '{problem_slug}' not found (URL: {page.url})")
                 screenshot(page, "problem_not_found")
                 return False
+            print(f"  [ok] {page.title()}")
 
             # -- Enter code --------------------------------------------
             print(f"\n[3/4] Entering code ({len(code)} chars, lang={lang})")
 
-            # Select language
-            try:
-                lang_btn = page.locator(
-                    "button[data-testid='lang-select']").first
-                if lang_btn.is_visible():
-                    lang_btn.click()
-                    time.sleep(1)
-                    lang_option = page.locator(
-                        f"div:has-text('{lang}')").first
-                    if lang_option.is_visible():
-                        lang_option.click()
-                        time.sleep(1)
-            except Exception:
-                pass
-
-            # Focus editor, clear, type code
+            # Wait for Monaco editor to be ready
             editor = page.locator(".monaco-editor").first
-            if editor.is_visible():
-                editor.click()
-                time.sleep(0.3)
+            editor.wait_for(state="visible", timeout=15_000)
+            editor.click()
+            time.sleep(0.5)
 
-            page.keyboard.press("Control+A")
+            # Select all existing code and delete it
+            modifier = "Meta" if sys.platform == "darwin" else "Control"
+            page.keyboard.press(f"{modifier}+A")
             time.sleep(0.2)
             page.keyboard.press("Delete")
             time.sleep(0.2)
-            page.keyboard.type(code, delay=5)
+
+            # Paste code via clipboard (preserves formatting, unlike fill())
+            page.evaluate("text => navigator.clipboard.writeText(text)", code)
+            time.sleep(0.2)
+            page.keyboard.press(f"{modifier}+V")
             time.sleep(1)
-            print("  [ok] Code entered")
+            print("  [ok] Code pasted via clipboard")
             screenshot(page, "code_entered")
 
             # -- Submit ------------------------------------------------
             print("\n[4/4] Submitting...")
-            time.sleep(1)
-
-            if editor.is_visible():
-                editor.click()
-                time.sleep(0.3)
-
-            page.keyboard.press("Control+Enter")
+            editor.click()
+            time.sleep(0.3)
+            page.keyboard.press(f"{modifier}+Enter")
             print("  [ok] Ctrl+Enter pressed")
-            time.sleep(3)
+            time.sleep(5)
             screenshot(page, "submitted")
 
             # -- Wait for verdict --------------------------------------
             print("  Waiting for verdict", end="", flush=True)
-            max_wait = 90
+            max_wait = 120
             start = time.time()
             last_state = None
 
@@ -564,7 +382,11 @@ def submit_solution(
             ]
 
             while time.time() - start < max_wait:
-                body = page.locator("body").inner_text()
+                try:
+                    body = page.locator("body").inner_text()
+                except Exception:
+                    time.sleep(2)
+                    continue
 
                 state = None
                 for kw in TERMINAL_STATES:
@@ -583,7 +405,7 @@ def submit_solution(
                     screenshot(page, "accepted")
                     return True
 
-                if state in TERMINAL_STATES and state != "Accepted":
+                if state in TERMINAL_STATES:
                     print(f"\n  [FAIL] {state}")
                     screenshot(page, state.lower().replace(" ", "_"))
                     return False
@@ -668,25 +490,24 @@ Examples:
 """,
     )
 
-    # Modes
     parser.add_argument("--save-session", action="store_true",
                         help="Open browser to login manually and save session")
-
-    # Submission args
     parser.add_argument("--problem-slug",
                         help="Problem slug (e.g. two-sum)")
     parser.add_argument("--file",
                         help="Solution file path")
+    parser.add_argument("--code",
+                        help="Inline solution code (alternative to --file)")
     parser.add_argument("--lang", default="cpp",
                         help="Language (default: cpp)")
     parser.add_argument("--show-browser", action="store_true",
                         help="Show browser window")
+    parser.add_argument("--slow-mo", type=int, default=0,
+                        help="Slow down actions by N ms")
     parser.add_argument("--screenshot-dir",
                         default=os.environ.get(
                             "SCREENSHOT_DIR", "/tmp/leetcode-screenshots"),
                         help="Screenshot output directory")
-
-    # GitHub OAuth credentials
     parser.add_argument("--gh-username",
                         default=os.getenv("GH_USERNAME", ""),
                         help="GitHub username (or GH_USERNAME env)")
@@ -704,34 +525,37 @@ Examples:
         save_session_interactive()
         return
 
-    # Mode: submit -- validate required args
-    if not args.problem_slug or not args.file:
-        parser.error("--problem-slug and --file are required for submission")
+    # Mode: submit - validate required args
+    if not args.problem_slug:
+        parser.error("--problem-slug is required for submission")
+    if not args.file and not args.code:
+        parser.error("--file or --code is required for submission")
 
-    code_path = Path(args.file)
-    if not code_path.exists():
-        print(f"Error: File not found: {args.file}", file=sys.stderr)
-        sys.exit(1)
+    if args.code:
+        code = args.code
+    else:
+        code_path = Path(args.file)
+        if not code_path.exists():
+            print(f"Error: File not found: {args.file}", file=sys.stderr)
+            sys.exit(1)
+        code = code_path.read_text(encoding="utf-8")
 
-    # Check if we have any login method available
+    # Need at least one login method
     if not has_saved_session() and not args.gh_username:
         print("Error: No login method available.\n", file=sys.stderr)
-        print("Option A (recommended): Provide GitHub credentials:", file=sys.stderr)
-        print("  --gh-username USER --gh-password PASS", file=sys.stderr)
-        print("  or set GH_USERNAME / GH_PASSWORD env vars\n",
-              file=sys.stderr)
+        print("Option A: Provide GitHub credentials:", file=sys.stderr)
+        print("  --gh-username USER --gh-password PASS\n", file=sys.stderr)
         print("Option B: Save session first:", file=sys.stderr)
         print("  python scripts/submit_to_leetcode.py --save-session",
               file=sys.stderr)
         sys.exit(1)
-
-    code = code_path.read_text(encoding="utf-8")
 
     success = submit_solution(
         problem_slug=args.problem_slug,
         code=code,
         lang=args.lang,
         headless=not args.show_browser,
+        slow_mo=args.slow_mo if args.show_browser else 0,
         gh_username=args.gh_username,
         gh_password=args.gh_password,
     )
