@@ -1,89 +1,48 @@
 #!/bin/bash
-# Submit solutions to LeetCode
-#
-# Required env vars (at least one login method):
-#   GH_USERNAME / GH_PASSWORD  — GitHub OAuth login
-#   Or a saved session at ~/.cache/leetcode-submit/storage_state.json
+# Submit changed solution files to LeetCode — one file per Python invocation.
+# Usage: bash scripts/submit_to_leetcode.sh src/1_TwoSum/solution.h [...]
 
 set -e
 
-# Check if we have any login method available
-HAS_SESSION=false
-if [ -f "$HOME/.cache/leetcode-submit/storage_state.json" ]; then
-  HAS_SESSION=true
-  echo "✅ Saved session found"
-fi
+[ $# -eq 0 ] && { echo "Usage: $0 <solution.h> [...]"; exit 1; }
 
-HAS_GITHUB=false
-if [ -n "$GH_USERNAME" ] && [ -n "$GH_PASSWORD" ]; then
-  HAS_GITHUB=true
-  echo "✅ GitHub credentials provided"
-fi
-
-if [ "$HAS_SESSION" = false ] && [ "$HAS_GITHUB" = false ]; then
-  echo "❌ No login method available!"
-  echo "   Option A: Run  python scripts/submit_to_leetcode.py --save-session"
-  echo "   Option B: Set GH_USERNAME and GH_PASSWORD"
+if [ ! -f "$HOME/.cache/leetcode-submit/storage_state.json" ]; then
+  echo "❌ No saved session. Run: python scripts/submit_to_leetcode.py --save-session"
   exit 1
 fi
+echo "✅ Saved session found"
+[ -n "$GH_USERNAME" ] && [ -n "$GH_PASSWORD" ] && echo "✅ GitHub credentials (fallback)"
 
-submission_count=0
-success_count=0
+derive_slug() {
+  basename "$(dirname "$1")" \
+    | sed 's/^[0-9]*_//; s/\([a-z0-9]\)\([A-Z]\)/\1-\2/g; s/\([A-Z]\)\([A-Z][a-z]\)/\1-\2/g' \
+    | tr '[:upper:]' '[:lower:]'
+}
 
-# Process all changed solution.h files
-for file in $(cat /tmp/changed_files.txt | grep 'solution.h' || true); do
-  problem_dir=$(dirname "$file")
-  problem_name=$(basename "$problem_dir")
-  problem_id=$(echo "$problem_name" | grep -oE '^[0-9]+' || echo "")
-
-  [ -z "$problem_id" ] && { echo "❌ Cannot extract problem ID from: $problem_name"; exit 1; }
-
-  problem_slug=$(echo "$problem_name" | sed 's/^[0-9]*_//' | sed 's/\([A-Z]\)/-\L\1/g' | sed 's/^-//')
-
-  echo ""
-  echo "=========================================="
-  echo "[$problem_id] $problem_slug"
-  echo "=========================================="
-
-  solution_file="$problem_dir/solution.h"
-  [ ! -f "$solution_file" ] && { echo "❌ Solution file not found"; exit 1; }
-
-  namespaces=$(python scripts/extract_solution.py "$solution_file" --all 2>/dev/null | grep "^\s*-" | sed 's/.*- //' || true)
-  [ -z "$namespaces" ] && { echo "❌ No namespaces found"; exit 1; }
-
-  echo "Namespaces: $namespaces"
-
-  for ns in $namespaces; do
-    echo ""
-    echo "--- Namespace: $ns ---"
-    submission_count=$((submission_count + 1))
-
-    tmp_file="/tmp/solution_${problem_id}_${ns}.cpp"
-    python scripts/extract_solution.py "$solution_file" --ns "$ns" --output "$tmp_file" || { echo "❌ Extraction failed"; exit 1; }
-    [ ! -f "$tmp_file" ] && { echo "❌ File not created"; exit 1; }
-
-    if python scripts/submit_to_leetcode.py \
-         --problem-slug "$problem_slug" \
-         --file "$tmp_file" \
-         --lang "cpp" \
-         --screenshot-dir "${SCREENSHOT_DIR:-/tmp/leetcode-screenshots}"; then
-      echo "✅ ACCEPTED"
-      success_count=$((success_count + 1))
-    else
-      echo "❌ FAILED"
-      exit 1
-    fi
-
-    sleep 3
-  done
+for file in "$@"; do
+  [ ! -f "$file" ] && { echo "❌ File not found: $file"; exit 1; }
 done
 
-echo ""
-echo "=========================================="
-echo "Result: $success_count/$submission_count passed"
-echo "=========================================="
+echo -e "\nFiles to submit ($#):"
+for file in "$@"; do echo "  - $file"; done
 
-[ "$submission_count" -eq 0 ] && { echo "❌ No solutions submitted"; exit 1; }
-[ "$success_count" -ne "$submission_count" ] && { echo "❌ Some submissions failed"; exit 1; }
+total=$# passed=0 failed=0
 
-echo "✅ All submissions passed!"
+for file in "$@"; do
+  slug=$(derive_slug "$file")
+  echo -e "\n==========================================\n[$slug] $file\n=========================================="
+
+  set +e
+  python scripts/submit_to_leetcode.py \
+    --problem-slug "$slug" --file "$file" \
+    --screenshot-dir "${SCREENSHOT_DIR:-/tmp/leetcode-screenshots}"
+  rc=$?
+  set -e
+
+  if [ $rc -eq 0 ]; then echo "✅ $slug: ALL ACCEPTED"; passed=$((passed + 1))
+  else echo "❌ $slug: FAILED (exit $rc)"; failed=$((failed + 1)); fi
+done
+
+echo -e "\n==========================================\nResult: $passed/$total problems passed\n=========================================="
+[ $failed -gt 0 ] && { echo "❌ $failed problem(s) failed"; exit 1; }
+echo "✅ All problems passed!"
