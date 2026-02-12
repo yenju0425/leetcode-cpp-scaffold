@@ -14,7 +14,8 @@ struct TreeNode {
 
 struct Tree {
     TreeNode* root = nullptr;
-    explicit Tree(const boost::json::value& val);
+    Tree(const boost::json::value& val);
+    Tree(TreeNode* root);
     ~Tree();
     Tree(const Tree&)            = delete;
     Tree& operator=(const Tree&) = delete;
