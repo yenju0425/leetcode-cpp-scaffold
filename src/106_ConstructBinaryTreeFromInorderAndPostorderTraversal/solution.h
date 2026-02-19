@@ -18,7 +18,7 @@ private:
 
         size_t idx = _in_idx.at(node_val);
 
-        node->left  = build(inorder, postorder, idx - 1, in_l, idx);
+        node->left  = build(inorder, postorder, post_idx - (in_r - idx), in_l, idx);
         node->right = build(inorder, postorder, post_idx - 1, idx + 1, in_r);
 
         return node;
