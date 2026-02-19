@@ -25,6 +25,7 @@ public:
         io::build_params_from_file(__FILE__, "test_cases.json",
                                    {
                                        {"Baseline", io::make_runner<baseline::Solution, Adapter>()},
+                                       {"Hashmap", io::make_runner<hashmap::Solution, Adapter>()},
                                    });
 };
 
