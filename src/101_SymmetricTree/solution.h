@@ -1,8 +1,8 @@
 #include <util/leetcode.h>
 
-namespace baseline {
+namespace {
 
-using namespace std;
+namespace baseline {
 
 class Solution {
 private:
@@ -132,3 +132,5 @@ public:
 };
 
 }  // namespace bfs_optimized
+
+}  // anonymous namespace

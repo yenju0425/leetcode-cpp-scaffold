@@ -1,23 +1,23 @@
 #include <util/leetcode.h>
 
-namespace baseline {
+namespace {
 
-using namespace std;
+namespace baseline {
 
 class Solution {
 public:
-    vector<vector<int>> zigzagLevelOrder(TreeNode* root) {
+    std::vector<std::vector<int>> zigzagLevelOrder(TreeNode* root) {
         if (!root) {
             return {};
         }
 
-        vector<vector<int>> res;
+        std::vector<std::vector<int>> res;
 
         std::deque<TreeNode*> q;
         q.push_back(root);
 
         while (!q.empty()) {
-            vector<int> level_values;
+            std::vector<int> level_values;
 
             auto level_count = q.size();
             for (size_t i = 0; i < level_count; ++i) {
@@ -59,3 +59,5 @@ public:
 };
 
 }  // namespace baseline
+
+}  // anonymous namespace

@@ -1,19 +1,19 @@
 #include <util/leetcode.h>
 
-namespace baseline {
+namespace {
 
-using namespace std;
+namespace baseline {
 
 class Solution {
 public:
-    vector<int> twoSum(vector<int>& nums, int target) {
-        unordered_map<int, int> val_to_index;
-        for (int i = 0; i < nums.size(); ++i) {
+    std::vector<int> twoSum(std::vector<int>& nums, int target) {
+        std::unordered_map<int, size_t> val_to_index;
+        for (size_t i = 0; i < nums.size(); ++i) {
             int complement = target - nums[i];
 
             auto it = val_to_index.find(complement);
             if (it != val_to_index.end()) {
-                return {it->second, i};
+                return {static_cast<int>(it->second), static_cast<int>(i)};
             }
             val_to_index[nums[i]] = i;
         }
@@ -23,3 +23,5 @@ public:
 };
 
 }  // namespace baseline
+
+}  // anonymous namespace
