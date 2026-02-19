@@ -370,7 +370,7 @@ def main():
                         default=os.environ.get("SCREENSHOT_DIR", "/tmp/leetcode-screenshots"))
     parser.add_argument("--gh-username", default=os.getenv("GH_USERNAME", ""))
     parser.add_argument("--gh-password", default=os.getenv("GH_PASSWORD", ""))
-    parser.add_argument("--max-retries", type=int, default=3)
+    parser.add_argument("--max-retries", type=int, default=5)
     args = parser.parse_args()
 
     global SCREENSHOT_DIR
