@@ -38,6 +38,8 @@ Tree::Tree(const boost::json::value& val) {
     }
 }
 
+Tree::Tree(TreeNode* root) : root(root) {}
+
 Tree::~Tree() { release_node(this->root); }
 
 void Tree::release_node(TreeNode* node) {
