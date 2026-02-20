@@ -1,8 +1,8 @@
 #include <util/leetcode.h>
 
-namespace baseline {
+namespace {
 
-using namespace std;
+namespace baseline {
 
 class Solution {
 public:
@@ -74,3 +74,5 @@ public:
 };
 
 }  // namespace recursive_v2
+
+}  // anonymous namespace

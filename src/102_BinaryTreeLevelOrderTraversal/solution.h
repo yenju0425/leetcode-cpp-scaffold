@@ -1,25 +1,23 @@
 #include <util/leetcode.h>
 
-#include <cstddef>
+namespace {
 
 namespace baseline {
 
-using namespace std;
-
 class Solution {
 public:
-    vector<vector<int>> levelOrder(TreeNode* root) {
+    std::vector<std::vector<int>> levelOrder(TreeNode* root) {
         if (!root) {
             return {};
         }
 
-        vector<vector<int>> res;
+        std::vector<std::vector<int>> res;
 
         std::queue<TreeNode*> q;
         q.push(root);
 
         while (!q.empty()) {
-            vector<int> level_values;
+            std::vector<int> level_values;
             std::queue<TreeNode*> next_q;
 
             while (!q.empty()) {
@@ -44,22 +42,20 @@ public:
 
 namespace baseline_optimized {
 
-using namespace std;
-
 class Solution {
 public:
-    vector<vector<int>> levelOrder(TreeNode* root) {
+    std::vector<std::vector<int>> levelOrder(TreeNode* root) {
         if (!root) {
             return {};
         }
 
-        vector<vector<int>> res;
+        std::vector<std::vector<int>> res;
 
         std::queue<TreeNode*> q;
         q.push(root);
 
         while (!q.empty()) {
-            vector<int> level_values;
+            std::vector<int> level_values;
 
             auto level_count = q.size();
             for (size_t i = 0; i < level_count; ++i) {
@@ -83,11 +79,9 @@ public:
 
 namespace dfs {
 
-using namespace std;
-
 class Solution {
 private:
-    void dfs(TreeNode* node, size_t level, vector<vector<int>>& res) {
+    void dfs(TreeNode* node, size_t level, std::vector<std::vector<int>>& res) {
         if (!node) {
             return;
         }
@@ -102,11 +96,13 @@ private:
     }
 
 public:
-    vector<vector<int>> levelOrder(TreeNode* root) {
-        vector<vector<int>> res;
+    std::vector<std::vector<int>> levelOrder(TreeNode* root) {
+        std::vector<std::vector<int>> res;
         dfs(root, 0, res);
         return res;
     }
 };
 
 }  // namespace dfs
+
+}  // anonymous namespace

@@ -1,0 +1,46 @@
+{
+    "test_cases": [
+        {
+            "name": "Example1",
+            "input": {
+                "inorder": [
+                    9,
+                    3,
+                    15,
+                    20,
+                    7
+                ],
+                "postorder": [
+                    9,
+                    15,
+                    7,
+                    20,
+                    3
+                ]
+            },
+            "output": [
+                3,
+                9,
+                20,
+                null,
+                null,
+                15,
+                7
+            ]
+        },
+        {
+            "name": "Example2",
+            "input": {
+                "inorder": [
+                    -1
+                ],
+                "postorder": [
+                    -1
+                ]
+            },
+            "output": [
+                -1
+            ]
+        }
+    ]
+}

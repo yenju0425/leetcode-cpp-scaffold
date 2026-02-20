@@ -1,12 +1,12 @@
 #include <util/leetcode.h>
 
-namespace baseline {
+namespace {
 
-using namespace std;
+namespace baseline {
 
 class Solution {
 public:
-    int maxProfit(vector<int>& prices) {
+    int maxProfit(std::vector<int>& prices) {
         int entry_price = std::numeric_limits<int>::max(), best_profit = 0;
         for (const auto& p : prices) {
             entry_price = std::min(entry_price, p);
@@ -17,3 +17,5 @@ public:
 };
 
 }  // namespace baseline
+
+}  // anonymous namespace
