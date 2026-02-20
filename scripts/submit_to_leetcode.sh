@@ -15,7 +15,7 @@ echo "✅ Saved session found"
 
 derive_slug() {
   basename "$(dirname "$1")" \
-    | sed 's/^[0-9]*_//; s/\([a-z0-9]\)\([A-Z]\)/\1-\2/g; s/\([A-Z]\)\([A-Z][a-z]\)/\1-\2/g' \
+    | sed 's/^[0-9]*_//; s/_/-/g; s/\([a-z0-9]\)\([A-Z]\)/\1-\2/g; s/\([A-Z]\)\([A-Z][a-z]\)/\1-\2/g' \
     | tr '[:upper:]' '[:lower:]'
 }
 
