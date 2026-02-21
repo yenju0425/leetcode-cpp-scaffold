@@ -3,6 +3,25 @@
 
 #include <boost/json.hpp>
 
+struct ListNode {
+    int val;
+    ListNode* next;
+    ListNode() : val(0), next(nullptr) {}
+    ListNode(int x) : val(x), next(nullptr) {}
+    ListNode(int x, ListNode* next) : val(x), next(next) {}
+};
+
+struct List {
+    ListNode* head = nullptr;
+    List(const boost::json::value& val);
+    List(ListNode* head);
+    ~List();
+    List(const List&)            = delete;
+    List& operator=(const List&) = delete;
+
+    void release_node(ListNode* node);
+};
+
 struct TreeNode {
     int val;
     TreeNode* left;
