@@ -14,7 +14,8 @@ public:
             const auto& c     = case_json.as_object();
             const auto& input = c.at("input").as_object();
 
-            Tree tree(s.sortedArrayToBST(boost::json::value_to<std::vector<int>>(input.at("nums"))));
+            auto nums = boost::json::value_to<std::vector<int>>(input.at("nums"));
+            Tree tree(s.sortedArrayToBST(nums));
             return boost::json::value_from(tree.serialize_tree_level_order());
         }
     };
