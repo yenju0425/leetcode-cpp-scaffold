@@ -160,7 +160,3 @@ python scripts/submit_to_leetcode.py --save-session
 │   └── extract_solution.py     # Standalone namespace extractor
 └── .github/workflows/ci.yml   # CI pipeline
 ```
-
-## License
-
-MIT

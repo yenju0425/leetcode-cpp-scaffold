@@ -114,7 +114,15 @@ def to_upper_camel_case(title: str) -> str:
     """Convert title to UpperCamelCase (e.g., 'Two Sum' -> 'TwoSum')."""
     cleaned = re.sub(r"[^a-zA-Z0-9\s]", "", title)
     words = cleaned.split()
-    camel = "".join(word.capitalize() for word in words)
+
+    def format_word(word: str) -> str:
+        """Format word, keeping Roman numerals uppercase."""
+        # Check if word is a Roman numeral (only contains i, v, x, l, c, d, m)
+        if word and all(c.lower() in 'ivxlcdm' for c in word):
+            return "_" + word.upper()
+        return word.capitalize()
+
+    camel = "".join(format_word(word) for word in words)
     return camel
 
 
