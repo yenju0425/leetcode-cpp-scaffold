@@ -23,7 +23,7 @@ public:
         io::build_params_from_file(__FILE__, "test_cases.json",
                                    {
                                        {"Baseline", io::make_runner<baseline::Solution, Adapter>()},
-                                       // TODO:
+                                       {"Optimized", io::make_runner<optimized::Solution, Adapter>()},
                                    });
 };
 
