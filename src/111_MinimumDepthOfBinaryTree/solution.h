@@ -8,14 +8,14 @@ class Solution {
 public:
     int minDepth(TreeNode* root) {
         if (!root) {
-            return std::numeric_limits<int>::max();
+            return 0;
         }
 
-        if (!root->left && !root->right) {
-            return 1;
+        if (root->left && root->right) {
+            return std::min(minDepth(root->left), minDepth(root->right)) + 1;
         }
 
-        return std::min(minDepth(root->left), minDepth(root->right)) + 1;
+        return std::max(minDepth(root->left), minDepth(root->right)) + 1;
     }
 };
 
