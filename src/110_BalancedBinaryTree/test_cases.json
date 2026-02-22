@@ -1,0 +1,43 @@
+{
+    "test_cases": [
+        {
+            "name": "Example1",
+            "input": {
+                "root": [
+                    3,
+                    9,
+                    20,
+                    null,
+                    null,
+                    15,
+                    7
+                ]
+            },
+            "output": true
+        },
+        {
+            "name": "Example2",
+            "input": {
+                "root": [
+                    1,
+                    2,
+                    2,
+                    3,
+                    3,
+                    null,
+                    null,
+                    4,
+                    4
+                ]
+            },
+            "output": false
+        },
+        {
+            "name": "Example3",
+            "input": {
+                "root": []
+            },
+            "output": true
+        }
+    ]
+}
