@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <queue>
 #include <set>
 #include <stack>
