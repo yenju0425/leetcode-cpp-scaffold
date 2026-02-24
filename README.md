@@ -32,12 +32,14 @@ Each approach lives in its own namespace:
 ```cpp
 #include <util/leetcode.h>
 
+namespace {
+
 namespace baseline {
-using namespace std;
+
 class Solution {
 public:
-    vector<int> twoSum(vector<int>& nums, int target) {
-        unordered_map<int, int> m;
+    std::vector<int> twoSum(std::vector<int>& nums, int target) {
+        std::unordered_map<int, int> m;
         for (int i = 0; i < nums.size(); ++i) {
             auto it = m.find(target - nums[i]);
             if (it != m.end()) return {it->second, i};
@@ -46,20 +48,24 @@ public:
         return {};
     }
 };
+
 }  // namespace baseline
 
 namespace brute_force {
-using namespace std;
+
 class Solution {
 public:
-    vector<int> twoSum(vector<int>& nums, int target) {
+    std::vector<int> twoSum(std::vector<int>& nums, int target) {
         for (int i = 0; i < nums.size(); ++i)
             for (int j = i + 1; j < nums.size(); ++j)
                 if (nums[i] + nums[j] == target) return {i, j};
         return {};
     }
 };
+
 }  // namespace brute_force
+
+}  // anonymous namespace
 ```
 
 > The closing comment `}  // namespace <name>` is required — the extraction logic uses it to find namespace boundaries.
@@ -72,17 +78,19 @@ Wire up two things — the **adapter** and the **solver list**:
 struct Adapter {
     template <class Solver>
     static boost::json::value invoke(Solver& s, const boost::json::value& case_json) {
-        const auto& input = case_json.as_object().at("input").as_object();
-        auto nums = boost::json::value_to<std::vector<int>>(input.at("nums"));
-        int target = boost::json::value_to<int>(input.at("target"));
+        const auto& c     = case_json.as_object();
+        const auto& input = c.at("input").as_object();
+
+        auto nums   = boost::json::value_to<std::vector<int>>(input.at("nums"));
+        auto target = input.at("target").to_number<int>();
         return boost::json::value_from(s.twoSum(nums, target));
     }
 };
 
 static inline const std::vector<io::CaseParam> kParams =
     io::build_params_from_file(__FILE__, "test_cases.json",
-        {{"Baseline", io::make_runner<baseline::Solution, Adapter>()},
-         {"BruteForce", io::make_runner<brute_force::Solution, Adapter>()}});
+                               {{"Baseline", io::make_runner<baseline::Solution, Adapter>()},
+                                {"BruteForce", io::make_runner<brute_force::Solution, Adapter>()}});
 ```
 
 ### `test_cases.json`

@@ -6,7 +6,7 @@
 
 #include "solution.h"
 
-class TwoSumParamSuite : public ::testing::TestWithParam<io::CaseParam> {
+class PathSumParamSuite : public ::testing::TestWithParam<io::CaseParam> {
 public:
     struct Adapter {
         template <class Solver>
@@ -14,9 +14,9 @@ public:
             const auto& c     = case_json.as_object();
             const auto& input = c.at("input").as_object();
 
-            auto nums   = boost::json::value_to<std::vector<int>>(input.at("nums"));
-            auto target = input.at("target").to_number<int>();
-            return boost::json::value_from(s.twoSum(nums, target));
+            Tree tree(input.at("root"));
+            auto target = input.at("targetSum").to_number<int>();
+            return boost::json::value_from(s.hasPathSum(tree.root, target));
         }
     };
 
@@ -27,7 +27,7 @@ public:
                                    });
 };
 
-TEST_P(TwoSumParamSuite, ExampleOutput) {
+TEST_P(PathSumParamSuite, ExampleOutput) {
     const auto& p = GetParam();
     const auto& c = p.case_json.as_object();
 
@@ -35,4 +35,4 @@ TEST_P(TwoSumParamSuite, ExampleOutput) {
     EXPECT_EQ(got, c.at("output")) << "solver=" << p.solver_name << ", case=" << c.at("name").as_string().c_str();
 }
 
-INSTANTIATE_TEST_SUITE_P(FromJson, TwoSumParamSuite, ::testing::ValuesIn(TwoSumParamSuite::kParams), io::gen_flatten_name);
+INSTANTIATE_TEST_SUITE_P(FromJson, PathSumParamSuite, ::testing::ValuesIn(PathSumParamSuite::kParams), io::gen_flatten_name);
