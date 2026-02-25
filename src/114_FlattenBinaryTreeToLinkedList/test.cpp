@@ -26,6 +26,10 @@ public:
                                        {"Baseline", io::make_runner<baseline::Solution, Adapter>()},
                                        {"RecursiveV1", io::make_runner<recursive_v1::Solution, Adapter>()},
                                        {"RecursiveV2", io::make_runner<recursive_v2::Solution, Adapter>()},
+                                       {"RecursiveV3", io::make_runner<recursive_v3::Solution, Adapter>()},
+                                       {"RecursiveV4", io::make_runner<recursive_v4::Solution, Adapter>()},
+                                       {"RecursiveV5", io::make_runner<recursive_v5::Solution, Adapter>()},
+                                       {"RecursiveV6", io::make_runner<recursive_v6::Solution, Adapter>()},
                                    });
 };
 
