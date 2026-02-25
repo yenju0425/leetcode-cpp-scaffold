@@ -26,12 +26,12 @@ private:
 
 public:
     TreeNode* sortedListToBST(ListNode* head) {
-        auto current_node = head;
+        auto curr = head;
 
         size_t len = 0;
-        while (current_node) {
+        while (curr) {
             ++len;
-            current_node = current_node->next;
+            curr = curr->next;
         }
 
         return build(head, len);

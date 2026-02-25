@@ -132,14 +132,14 @@ namespace recursive_v5 {
 class Solution {
 private:
     void flatten_helper(TreeNode*& node) {
-        auto* temp = node;
+        auto* curr = node;
         if (node->left) {
             node = node->left;
             flatten_helper(node);
 
-            node->right = temp->right;
-            temp->right = temp->left;
-            temp->left  = nullptr;
+            node->right = curr->right;
+            curr->right = curr->left;
+            curr->left  = nullptr;
         }
 
         if (node->right) {
