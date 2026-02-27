@@ -17,7 +17,7 @@ public:
             auto preorder = boost::json::value_to<std::vector<int>>(input.at("preorder"));
             auto inorder  = boost::json::value_to<std::vector<int>>(input.at("inorder"));
             Tree tree(s.buildTree(preorder, inorder));
-            return tree.serialize_tree_level_order();
+            return tree.serialize();
         }
     };
 
