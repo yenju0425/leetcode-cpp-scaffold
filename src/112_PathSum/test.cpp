@@ -16,7 +16,7 @@ public:
 
             Tree tree(input.at("root"));
             auto target = input.at("targetSum").to_number<int>();
-            return boost::json::value_from(s.hasPathSum(tree.root, target));
+            return boost::json::value_from(s.hasPathSum(tree.root(), target));
         }
     };
 

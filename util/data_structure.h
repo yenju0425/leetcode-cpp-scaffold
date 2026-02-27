@@ -2,7 +2,7 @@
 #define UTIL_DATA_STRUCTURE_H
 
 #include <boost/json.hpp>
-#include <string>
+#include <concepts>
 
 struct ListNode {
     int val;
@@ -43,13 +43,15 @@ struct TreeNode {
     TreeNode(int x, TreeNode* left, TreeNode* right) : val(x), left(left), right(right) {}
 };
 
-// --- TreeBase: shared RAII wrapper for tree node types ---
-// Requires NodeType to have: (int) constructor, left/right pointers
+template <typename T>
+concept TreeNodeType = std::same_as<T, TreeNode> || std::same_as<T, Node>;
 
-template <typename NodeType>
-struct TreeBase {
-    NodeType* root = nullptr;
+template <TreeNodeType NodeType>
+class TreeBase {
+    NodeType* root_ = nullptr;
+    void release(NodeType* node);
 
+public:
     TreeBase() = default;
     explicit TreeBase(const boost::json::value& json_val);
     explicit TreeBase(NodeType* root);
@@ -58,17 +60,37 @@ struct TreeBase {
     TreeBase(const TreeBase&)            = delete;
     TreeBase& operator=(const TreeBase&) = delete;
 
-    void release_node(NodeType* node);
+    NodeType* root() const { return root_; }
 };
 
-struct Tree : TreeBase<TreeNode> {
-    using TreeBase::TreeBase;
-    boost::json::value serialize_tree_level_order();
+class ITree {
+public:
+    virtual boost::json::value serialize() = 0;
+    virtual ~ITree()                       = default;
 };
 
-struct ConnectedTree : TreeBase<Node> {
-    using TreeBase::TreeBase;
-    std::string serialize_next_level_order();
+class Tree : public ITree {
+    TreeBase<TreeNode> base_;
+
+public:
+    Tree() = default;
+    explicit Tree(const boost::json::value& json_val) : base_(json_val) {}
+    explicit Tree(TreeNode* root) : base_(root) {}
+
+    TreeNode* root() const { return base_.root(); }
+    boost::json::value serialize() override;
+};
+
+class ConnectedTree : public ITree {
+    TreeBase<Node> base_;
+
+public:
+    ConnectedTree() = default;
+    explicit ConnectedTree(const boost::json::value& json_val) : base_(json_val) {}
+    explicit ConnectedTree(Node* root) : base_(root) {}
+
+    Node* root() const { return base_.root(); }
+    boost::json::value serialize() override;
 };
 
 #endif /* UTIL_DATA_STRUCTURE_H */

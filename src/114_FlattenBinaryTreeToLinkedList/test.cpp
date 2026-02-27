@@ -15,8 +15,8 @@ public:
             const auto& input = c.at("input").as_object();
 
             Tree tree(input.at("root"));
-            s.flatten(tree.root);
-            return tree.serialize_tree_level_order();
+            s.flatten(tree.root());
+            return tree.serialize();
         }
     };
 

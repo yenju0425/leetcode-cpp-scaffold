@@ -16,7 +16,7 @@ public:
 
             Tree p(input.at("p"));
             Tree q(input.at("q"));
-            return boost::json::value_from(s.isSameTree(p.root, q.root));
+            return boost::json::value_from(s.isSameTree(p.root(), q.root()));
         }
     };
 

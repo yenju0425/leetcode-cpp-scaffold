@@ -17,7 +17,7 @@ public:
 
             List list(input.at("head"));
             Tree tree(s.sortedListToBST(list.head));
-            return boost::json::value_from(tree.serialize_tree_level_order());
+            return boost::json::value_from(tree.serialize());
         }
     };
 

@@ -16,7 +16,7 @@ public:
             const auto& input = c.at("input").as_object();
 
             Tree tree(input.at("root"));
-            return boost::json::value_from(s.levelOrderBottom(tree.root));
+            return boost::json::value_from(s.levelOrderBottom(tree.root()));
         }
     };
 
