@@ -3,7 +3,6 @@
 #include <util/leetcode.h>
 
 #include <boost/json.hpp>
-#include <boost/json/value_from.hpp>
 
 #include "solution.h"
 
@@ -17,7 +16,7 @@ public:
 
             List list(input.at("head"));
             Tree tree(s.sortedListToBST(list.head));
-            return boost::json::value_from(tree.serialize());
+            return tree.serialize();
         }
     };
 

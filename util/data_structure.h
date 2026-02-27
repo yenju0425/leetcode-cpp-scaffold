@@ -48,6 +48,7 @@ concept TreeNodeType = std::same_as<T, TreeNode> || std::same_as<T, Node>;
 
 template <TreeNodeType NodeType>
 class TreeBase {
+private:
     NodeType* root_ = nullptr;
     void release(NodeType* node);
 
@@ -70,6 +71,7 @@ public:
 };
 
 class Tree : public ITree {
+private:
     TreeBase<TreeNode> base_;
 
 public:
@@ -82,6 +84,7 @@ public:
 };
 
 class ConnectedTree : public ITree {
+private:
     TreeBase<Node> base_;
 
 public:
