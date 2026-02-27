@@ -2,6 +2,7 @@
 #define UTIL_DATA_STRUCTURE_H
 
 #include <boost/json.hpp>
+#include <string>
 
 struct ListNode {
     int val;
@@ -22,6 +23,17 @@ struct List {
     void release_node(ListNode* node);
 };
 
+struct Node {
+    int val;
+    Node* left;
+    Node* right;
+    Node* next;
+
+    Node() : val(0), left(nullptr), right(nullptr), next(nullptr) {}
+    Node(int val) : val(val), left(nullptr), right(nullptr), next(nullptr) {}
+    Node(int val, Node* left, Node* right, Node* next) : val(val), left(left), right(right), next(next) {}
+};
+
 struct TreeNode {
     int val;
     TreeNode* left;
@@ -31,16 +43,32 @@ struct TreeNode {
     TreeNode(int x, TreeNode* left, TreeNode* right) : val(x), left(left), right(right) {}
 };
 
-struct Tree {
-    TreeNode* root = nullptr;
-    Tree(const boost::json::value& val);
-    Tree(TreeNode* root);
-    ~Tree();
-    Tree(const Tree&)            = delete;
-    Tree& operator=(const Tree&) = delete;
+// --- TreeBase: shared RAII wrapper for tree node types ---
+// Requires NodeType to have: (int) constructor, left/right pointers
 
-    void release_node(TreeNode* node);
+template <typename NodeType>
+struct TreeBase {
+    NodeType* root = nullptr;
+
+    TreeBase() = default;
+    explicit TreeBase(const boost::json::value& json_val);
+    explicit TreeBase(NodeType* root);
+    ~TreeBase();
+
+    TreeBase(const TreeBase&)            = delete;
+    TreeBase& operator=(const TreeBase&) = delete;
+
+    void release_node(NodeType* node);
+};
+
+struct Tree : TreeBase<TreeNode> {
+    using TreeBase::TreeBase;
     boost::json::value serialize_tree_level_order();
+};
+
+struct ConnectedTree : TreeBase<Node> {
+    using TreeBase::TreeBase;
+    std::string serialize_next_level_order();
 };
 
 #endif /* UTIL_DATA_STRUCTURE_H */

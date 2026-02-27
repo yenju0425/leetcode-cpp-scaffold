@@ -3,6 +3,7 @@
 #include <boost/json/array.hpp>
 #include <boost/json/fwd.hpp>
 #include <queue>
+#include <string>
 
 List::List(const boost::json::value& json_val) {
     if (!json_val.is_array()) {
@@ -34,7 +35,10 @@ void List::release_node(ListNode* node) {
     }
 }
 
-Tree::Tree(const boost::json::value& json_val) {
+// --- TreeBase: shared construct / destruct / release ---
+
+template <typename NodeType>
+TreeBase<NodeType>::TreeBase(const boost::json::value& json_val) {
     if (!json_val.is_array()) {
         return;
     }
@@ -44,9 +48,9 @@ Tree::Tree(const boost::json::value& json_val) {
         return;
     }
 
-    this->root = new TreeNode(array.front().as_int64());
+    this->root = new NodeType(array.front().as_int64());
 
-    std::queue<TreeNode*> q;
+    std::queue<NodeType*> q;
     q.push(root);
 
     size_t idx = 1;
@@ -55,24 +59,29 @@ Tree::Tree(const boost::json::value& json_val) {
         q.pop();
 
         if (idx < array.size() && array[idx].is_int64()) {
-            node->left = new TreeNode(array[idx].as_int64());
+            node->left = new NodeType(array[idx].as_int64());
             q.push(node->left);
         }
         ++idx;
 
         if (idx < array.size() && array[idx].is_int64()) {
-            node->right = new TreeNode(array[idx].as_int64());
+            node->right = new NodeType(array[idx].as_int64());
             q.push(node->right);
         }
         ++idx;
     }
 }
 
-Tree::Tree(TreeNode* root) : root(root) {}
+template <typename NodeType>
+TreeBase<NodeType>::TreeBase(NodeType* root) : root(root) {}
 
-Tree::~Tree() { release_node(this->root); }
+template <typename NodeType>
+TreeBase<NodeType>::~TreeBase() {
+    release_node(this->root);
+}
 
-void Tree::release_node(TreeNode* node) {
+template <typename NodeType>
+void TreeBase<NodeType>::release_node(NodeType* node) {
     if (!node) {
         return;
     }
@@ -82,6 +91,12 @@ void Tree::release_node(TreeNode* node) {
 
     delete node;
 }
+
+// Explicit instantiations
+template struct TreeBase<TreeNode>;
+template struct TreeBase<Node>;
+
+// --- Tree: level-order serialization ---
 
 boost::json::value Tree::serialize_tree_level_order() {
     if (!this->root) {
@@ -111,5 +126,43 @@ boost::json::value Tree::serialize_tree_level_order() {
         array.pop_back();
     }
 
+    return result;
+}
+
+// --- ConnectedTree: next-pointer level-order serialization ---
+
+std::string ConnectedTree::serialize_next_level_order() {
+    if (!this->root) {
+        return "[]";
+    }
+
+    std::string result = "[";
+    Node* level_head   = this->root;
+
+    while (level_head) {
+        Node* curr = level_head;
+        level_head = nullptr;
+
+        while (curr) {
+            if (result.size() > 1) {
+                result += ',';
+            }
+            result += std::to_string(curr->val);
+
+            if (!level_head) {
+                if (curr->left) {
+                    level_head = curr->left;
+                } else if (curr->right) {
+                    level_head = curr->right;
+                }
+            }
+
+            curr = curr->next;
+        }
+
+        result += ",#";
+    }
+
+    result += ']';
     return result;
 }
