@@ -29,7 +29,7 @@ namespace recursive_v1 {
 
 class Solution {
 private:
-    TreeNode* _prev = nullptr;
+    TreeNode* prev_ = nullptr;
 
 public:
     void flatten(TreeNode* root) {
@@ -40,9 +40,9 @@ public:
         flatten(root->right);
         flatten(root->left);
 
-        root->right = _prev;
+        root->right = prev_;
         root->left  = nullptr;
-        _prev       = root;
+        prev_       = root;
     }
 };
 
@@ -52,7 +52,7 @@ namespace recursive_v2 {
 
 class Solution {
 private:
-    TreeNode* _prev = nullptr;
+    TreeNode* prev_ = nullptr;
 
 public:
     void flatten(TreeNode* root) {
@@ -60,16 +60,16 @@ public:
             return;
         }
 
-        _prev = root;
+        prev_ = root;
 
         flatten(root->left);
-        if (_prev != root) {
-            _prev->right = root->right;
+        if (prev_ != root) {
+            prev_->right = root->right;
             root->right  = root->left;
             root->left   = nullptr;
         }
 
-        flatten(_prev->right);
+        flatten(prev_->right);
     }
 };
 
