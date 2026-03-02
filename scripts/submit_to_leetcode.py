@@ -96,6 +96,7 @@ def goto(page: Page, url: str, label: str = "", timeout: int = TIMEOUT_PAGE) -> 
 def extract_all_solutions(filepath: str) -> dict[str, str]:
     content = Path(filepath).read_text(encoding="utf-8")
     content = re.sub(r'#include\s*[<"][^>"]*util[^>"]*[>"]', '', content)
+    content = re.sub(r'^\s*//.*$', '', content, flags=re.MULTILINE)
 
     solutions = {}
     for name, body in re.findall(
