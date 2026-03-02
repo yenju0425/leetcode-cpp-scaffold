@@ -93,6 +93,8 @@ def extract_all_solutions(filepath: str) -> Dict[str, str]:
     # Remove local includes
     content = re.sub(r'#include\s*<util/[^>]+>', '', content)
     content = re.sub(r'#include\s*"[^"]*util[^"]*"', '', content)
+    # Remove comment-only lines so commented-out namespaces are not extracted
+    content = re.sub(r'^\s*//.*$', '', content, flags=re.MULTILINE)
 
     namespaces = extract_namespaces(content)
 

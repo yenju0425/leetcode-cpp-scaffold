@@ -3,11 +3,10 @@
 #include <util/leetcode.h>
 
 #include <boost/json.hpp>
-#include <boost/json/value_from.hpp>
 
 #include "solution.h"
 
-class BinaryTreeLevelOrderTraversalParamSuite : public ::testing::TestWithParam<io::CaseParam> {
+class PopulatingNextRightPointersInEachNode_IIParamSuite : public ::testing::TestWithParam<io::CaseParam> {
 public:
     struct Adapter {
         template <class Solver>
@@ -15,8 +14,9 @@ public:
             const auto& c     = case_json.as_object();
             const auto& input = c.at("input").as_object();
 
-            Tree tree(input.at("root"));
-            return boost::json::value_from(s.levelOrder(tree.root()));
+            ConnectedTree tree(input.at("root"));
+            s.connect(tree.root());
+            return tree.serialize();
         }
     };
 
@@ -25,11 +25,11 @@ public:
                                    {
                                        {"Baseline", io::make_runner<baseline::Solution, Adapter>()},
                                        {"Optimized", io::make_runner<optimized::Solution, Adapter>()},
-                                       {"DFS", io::make_runner<dfs::Solution, Adapter>()},
+                                       {"Recursive", io::make_runner<recursive::Solution, Adapter>()},
                                    });
 };
 
-TEST_P(BinaryTreeLevelOrderTraversalParamSuite, ExampleOutput) {
+TEST_P(PopulatingNextRightPointersInEachNode_IIParamSuite, ExampleOutput) {
     const auto& p = GetParam();
     const auto& c = p.case_json.as_object();
 
@@ -37,5 +37,5 @@ TEST_P(BinaryTreeLevelOrderTraversalParamSuite, ExampleOutput) {
     EXPECT_EQ(got, c.at("output")) << "solver=" << p.solver_name << ", case=" << c.at("name").as_string().c_str();
 }
 
-INSTANTIATE_TEST_SUITE_P(FromJson, BinaryTreeLevelOrderTraversalParamSuite, ::testing::ValuesIn(BinaryTreeLevelOrderTraversalParamSuite::kParams),
-                         io::gen_flatten_name);
+INSTANTIATE_TEST_SUITE_P(FromJson, PopulatingNextRightPointersInEachNode_IIParamSuite,
+                         ::testing::ValuesIn(PopulatingNextRightPointersInEachNode_IIParamSuite::kParams), io::gen_flatten_name);

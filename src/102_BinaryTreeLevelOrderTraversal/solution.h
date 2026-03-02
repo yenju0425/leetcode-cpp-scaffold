@@ -40,7 +40,7 @@ public:
 
 }  // namespace baseline
 
-namespace baseline_optimized {
+namespace optimized {
 
 class Solution {
 public:
@@ -75,7 +75,7 @@ public:
     }
 };
 
-}  // namespace baseline_optimized
+}  // namespace optimized
 
 namespace dfs {
 
